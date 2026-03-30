@@ -71,8 +71,8 @@ func ApplyYAMLFileWithClients(ctx context.Context, yamlFilePath string, namespac
 	return ApplyYAMLData(ctx, yamlData, namespace, dynamicClient, restMapper, logger)
 }
 
-// Deprecated: Use ApplyYAMLFileWithClients with pre-created clients instead.
 // ApplyYAMLFile applies a YAML file containing Kubernetes resources.
+// Deprecated: Use ApplyYAMLFileWithClients with pre-created clients instead.
 // It creates new dynamic client and REST mapper on every call, which adds unnecessary overhead.
 func ApplyYAMLFile(ctx context.Context, yamlFilePath string, namespace string, restConfig *rest.Config, logger *Logger) ([]AppliedResource, error) {
 	dynamicClient, restMapper, err := CreateKubernetesClients(restConfig)
@@ -139,8 +139,8 @@ func WaitForPodsWithClientset(ctx context.Context, clientset kubernetes.Interfac
 	})
 }
 
-// Deprecated: Use WaitForPodsWithClientset with a pre-created clientset instead.
 // WaitForPods waits for pods to be ready in the specified namespaces.
+// Deprecated: Use WaitForPodsWithClientset with a pre-created clientset instead.
 // It creates a new clientset on every call, which adds unnecessary overhead.
 func WaitForPods(ctx context.Context, restConfig *rest.Config, namespaces []string, labelSelector string, expectedCount int, timeout time.Duration, interval time.Duration, logger *Logger) error {
 	clientset, err := kubernetes.NewForConfig(restConfig)
@@ -315,8 +315,8 @@ func WaitForPodsInNamespaceWithClientset(ctx context.Context, namespace string, 
 	return WaitForPodsWithClientset(ctx, clientset, []string{namespace}, "", expectedCount, timeout, interval, logger)
 }
 
-// Deprecated: Use WaitForPodsInNamespaceWithClientset with a pre-created clientset instead.
 // WaitForPodsInNamespace waits for all pods in a namespace to be ready.
+// Deprecated: Use WaitForPodsInNamespaceWithClientset with a pre-created clientset instead.
 // expectedCount is the expected number of pods (pass 0 to skip count validation)
 func WaitForPodsInNamespace(ctx context.Context, namespace string, restConfig *rest.Config, expectedCount int, timeout time.Duration, interval time.Duration, logger *Logger) error {
 	return WaitForPods(ctx, restConfig, []string{namespace}, "", expectedCount, timeout, interval, logger)
