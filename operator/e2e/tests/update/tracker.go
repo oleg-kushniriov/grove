@@ -50,14 +50,14 @@ func newUpdateTracker() *updateTracker {
 	return &updateTracker{}
 }
 
-// start begins watching pod events and blocks until the watcher is ready.
-// Uses tc.Ctx, tc.Clientset, tc.Namespace, and tc.GetLabelSelector() for watch configuration.
-func (t *updateTracker) start(tc tests.TestContext) error {
-	watcherCtx, cancel := context.WithCancel(tc.Ctx)
+// Start begins watching pod events and blocks until the watcher is ready.
+// Uses ts.Ctx, ts.Clients.Clientset, ts.Namespace, and ts.getLabelSelector() for watch configuration.
+func (t *rollingUpdateTracker) Start(ts *TestSuite) error {
+	watcherCtx, cancel := context.WithCancel(ts.Ctx)
 	t.cancel = cancel
 
-	watcher, err := tc.Clientset.CoreV1().Pods(tc.Namespace).Watch(watcherCtx, metav1.ListOptions{
-		LabelSelector: tc.GetLabelSelector(),
+	watcher, err := ts.Clients.Clientset.CoreV1().Pods(ts.Namespace).Watch(watcherCtx, metav1.ListOptions{
+		LabelSelector: ts.getLabelSelector(),
 	})
 	if err != nil {
 		cancel()

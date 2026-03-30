@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ai-dynamo/grove/operator/e2e/k8s"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	v1 "k8s.io/api/core/v1"
@@ -81,8 +82,8 @@ const (
 	LabelPodCliqueScalingGroup = "grove.io/podcliquescalinggroup"
 )
 
-// TestContext holds common test parameters that are shared across many utility functions.
-// This reduces repetitive parameter passing and makes function signatures cleaner.
+// Deprecated: Use TestSuite instead. TestContext is kept for backward compatibility
+// with debug_utils.go and will be removed once all consumers are migrated.
 type TestContext struct {
 	T             *testing.T
 	Ctx           context.Context
@@ -156,6 +157,7 @@ func waitForPodCountAndPhases(tc TestContext, expectedTotal, expectedRunning, ex
 }
 
 // clientCollection holds all Kubernetes clients needed by tests.
+// Deprecated: Use *k8s.Clients from prepareTestCluster instead.
 type clientCollection struct {
 	Clientset     *kubernetes.Clientset
 	RestConfig    *rest.Config
@@ -186,14 +188,8 @@ func PrepareTestCluster(ctx context.Context, t *testing.T, requiredWorkerNodes i
 		t.Fatalf("Failed to prepare shared cluster: %v", err)
 	}
 
-	// Get clients from shared cluster
-	clientset, restConfig, dynamicClient := sharedCluster.GetClients()
-
-	// Create REST mapper once for reuse across all YAML apply operations
-	_, restMapper, err := utils.CreateKubernetesClients(restConfig)
-	if err != nil {
-		t.Fatalf("Failed to create Kubernetes REST mapper: %v", err)
-	}
+	// Get bundled clients (created once during cluster setup, includes REST mapper)
+	clients := sharedCluster.GetAllClients()
 
 	cleanup := func() {
 		// Create a TestContext for diagnostics collection
@@ -201,10 +197,10 @@ func PrepareTestCluster(ctx context.Context, t *testing.T, requiredWorkerNodes i
 		diagnosticsTc := TestContext{
 			T:             t,
 			Ctx:           ctx,
-			Clientset:     clientset,
-			RestConfig:    restConfig,
-			DynamicClient: dynamicClient,
-			RestMapper:    restMapper,
+			Clientset:     clients.Clientset,
+			RestConfig:    clients.RestConfig,
+			DynamicClient: clients.DynamicClient,
+			RestMapper:    clients.RestMapper,
 			Namespace:     "default",
 			DiagMode:      diagMode,
 			DiagDir:       diagDir,
@@ -231,9 +227,21 @@ func PrepareTestCluster(ctx context.Context, t *testing.T, requiredWorkerNodes i
 		}
 	}
 
-	crClient := sharedCluster.GetCRClient()
+	return clientCollectionFromClients(clients), cleanup
+}
 
-	return clientCollection{clientset, restConfig, dynamicClient, restMapper, crClient}, cleanup
+// clientCollectionFromClients converts a *k8s.Clients to a clientCollection for backward compatibility.
+func clientCollectionFromClients(c *k8s.Clients) clientCollection {
+	// Type-assert to get the concrete *kubernetes.Clientset for backward compatibility.
+	// SharedClusterManager always creates a *kubernetes.Clientset, so this is safe.
+	cs, _ := c.Clientset.(*kubernetes.Clientset)
+	return clientCollection{
+		clientset:     cs,
+		restConfig:    c.RestConfig,
+		dynamicClient: c.DynamicClient,
+		restMapper:    c.RestMapper,
+		crClient:      c.CRClient,
+	}
 }
 
 // getWorkerNodes retrieves the names of all worker nodes in the cluster,
