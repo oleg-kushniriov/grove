@@ -160,7 +160,7 @@ func Test_RU10_RollingUpdateInsufficientResources(t *testing.T) {
 	ctx := context.Background()
 
 	logger.Info("1. Initialize a 10-node Grove cluster")
-	ts, cleanup := prepareTestSuite(ctx, t, 10,
+	ts, cleanup := prepareTest(ctx, t, 10,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload1",
 			YAMLPath:     "../../yaml/workload1.yaml",
@@ -681,7 +681,7 @@ func Test_RU18_RollingUpdateWithPodCliqueScaleOutDuringUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	logger.Info("1. Initialize a 24-node Grove cluster")
-	ts, cleanup := prepareTestSuite(ctx, t, 24,
+	ts, cleanup := prepareTest(ctx, t, 24,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload1",
 			YAMLPath:     "../../yaml/workload1.yaml",

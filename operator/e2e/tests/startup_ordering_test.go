@@ -59,7 +59,7 @@ func Test_SO1_InorderStartupOrderWithFullReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 10-node Grove cluster")
 	totalPods := 10 // pc-a: 2 replicas, pc-b: 1*2 (scaling group), pc-c: 3*2 (scaling group) = 2+2+6=10
-	ts, cleanup := prepareTestSuite(ctx, t, totalPods,
+	ts, cleanup := prepareTest(ctx, t, totalPods,
 		WithTimeout(5*time.Minute),
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload3",
@@ -108,7 +108,7 @@ func Test_SO2_InorderStartupOrderWithMinReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 10-node Grove cluster")
 	totalPods := 10 // pc-a: 2 replicas, pc-b: 1*2 (scaling group), pc-c: 3*2 (scaling group) = 2+2+6=10
-	ts, cleanup := prepareTestSuite(ctx, t, totalPods,
+	ts, cleanup := prepareTest(ctx, t, totalPods,
 		WithTimeout(5*time.Minute),
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload4",
@@ -168,7 +168,7 @@ func Test_SO3_ExplicitStartupOrderWithFullReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 10-node Grove cluster")
 	totalPods := 10 // pc-a: 2 replicas, pc-b: 1*2 (scaling group), pc-c: 3*2 (scaling group) = 2+2+6=10
-	ts, cleanup := prepareTestSuite(ctx, t, totalPods,
+	ts, cleanup := prepareTest(ctx, t, totalPods,
 		WithTimeout(5*time.Minute),
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload5",
@@ -218,7 +218,7 @@ func Test_SO4_ExplicitStartupOrderWithMinReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 10-node Grove cluster")
 	totalPods := 10 // pc-a: 2 replicas, pc-b: 1*2 (scaling group), pc-c: 3*2 (scaling group) = 2+2+6=10
-	ts, cleanup := prepareTestSuite(ctx, t, totalPods,
+	ts, cleanup := prepareTest(ctx, t, totalPods,
 		WithTimeout(5*time.Minute),
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload6",
@@ -354,7 +354,7 @@ type ScalingGroupOrderSpec struct {
 }
 
 // verifyScalingGroupStartupOrder verifies startup ordering for tests with scaling groups and minAvailable.
-func verifyScalingGroupStartupOrder(t *testing.T, ts *TestSuite, spec ScalingGroupOrderSpec) {
+func verifyScalingGroupStartupOrder(t *testing.T, ts *TestContext, spec ScalingGroupOrderSpec) {
 	t.Helper()
 
 	// Fetch the latest pod state
@@ -430,7 +430,7 @@ func verifyScalingGroupStartupOrder(t *testing.T, ts *TestSuite, spec ScalingGro
 }
 
 // verifyPodCliqueStartupOrder combines pod fetching, filtering, count verification, and startup order verification.
-func verifyPodCliqueStartupOrder(t *testing.T, ts *TestSuite,
+func verifyPodCliqueStartupOrder(t *testing.T, ts *TestContext,
 	beforeClique string, beforeCount int,
 	afterClique string, afterCount int) {
 	t.Helper()
@@ -515,7 +515,7 @@ func getPodsByCliquePattern(pods []v1.Pod, pattern string) []v1.Pod {
 }
 
 // debugPodState logs detailed state information for all pods in the namespace.
-func (ts *TestSuite) debugPodState() {
+func (ts *TestContext) debugPodState() {
 	pods, err := ts.ListPods()
 	if err != nil {
 		Logger.Errorf("Failed to list pods for debugging: %v", err)

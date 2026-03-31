@@ -52,7 +52,7 @@ func newUpdateTracker() *updateTracker {
 
 // Start begins watching pod events and blocks until the watcher is ready.
 // Uses ts.Ctx, ts.Clients.Clientset, ts.Namespace, and ts.getLabelSelector() for watch configuration.
-func (t *rollingUpdateTracker) Start(ts *TestSuite) error {
+func (t *rollingUpdateTracker) Start(ts *TestContext) error {
 	watcherCtx, cancel := context.WithCancel(ts.Ctx)
 	t.cancel = cancel
 

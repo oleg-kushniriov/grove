@@ -63,7 +63,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 	defer cancel()
 
 	logger.Info("preparing test cluster with 100 worker nodes")
-	ts, cleanup := prepareTestSuite(ctx, t, 100,
+	ts, cleanup := prepareTest(ctx, t, 100,
 		WithTimeout(scaleTestTimeout),
 		WithInterval(scaleTestPollInterval),
 		WithWorkload(&WorkloadConfig{

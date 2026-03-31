@@ -213,8 +213,8 @@ func createDiagnosticsFile(testName, diagDir string) (*os.File, string, error) {
 //   - "stdout": print to stdout only
 //   - "file": write to timestamped file only (default)
 //   - "both": write to both stdout and file
-func (tc TestContext) CollectAllDiagnostics() {
-	// Use diagnostics configuration from TestContext (set at test setup time)
+func (tc LegacyTestContext) CollectAllDiagnostics() {
+	// Use diagnostics configuration from LegacyTestContext (set at test setup time)
 	mode := tc.DiagMode
 	if mode == "" {
 		mode = DiagnosticsModeFile // default fallback
@@ -266,7 +266,7 @@ func (tc TestContext) CollectAllDiagnostics() {
 
 // dumpOperatorLogs captures and prints operator logs at INFO level.
 // Captures all logs from all containers in the operator pod.
-func (tc TestContext) dumpOperatorLogs(logger *utils.Logger) {
+func (tc LegacyTestContext) dumpOperatorLogs(logger *utils.Logger) {
 	logger.Info("================================================================================")
 	logger.Info("=== OPERATOR LOGS (all) ===")
 	logger.Info("================================================================================")
@@ -356,7 +356,7 @@ func (tc TestContext) dumpOperatorLogs(logger *utils.Logger) {
 }
 
 // dumpGroveResources dumps all Grove resources as YAML at INFO level.
-func (tc TestContext) dumpGroveResources(logger *utils.Logger) {
+func (tc LegacyTestContext) dumpGroveResources(logger *utils.Logger) {
 	logger.Info("================================================================================")
 	logger.Info("=== GROVE RESOURCES ===")
 	logger.Info("================================================================================")
@@ -402,7 +402,7 @@ func (tc TestContext) dumpGroveResources(logger *utils.Logger) {
 // dumpPodDetails dumps detailed pod information at INFO level.
 // Lists ALL pods in the namespace (not filtered by workload label selector)
 // to ensure we capture all relevant pods during failure diagnostics.
-func (tc TestContext) dumpPodDetails(logger *utils.Logger) {
+func (tc LegacyTestContext) dumpPodDetails(logger *utils.Logger) {
 	logger.Info("================================================================================")
 	logger.Info("=== POD DETAILS ===")
 	logger.Info("================================================================================")
@@ -486,7 +486,7 @@ func (tc TestContext) dumpPodDetails(logger *utils.Logger) {
 }
 
 // dumpRecentEvents dumps Kubernetes events from the last eventLookbackDuration at INFO level.
-func (tc TestContext) dumpRecentEvents(logger *utils.Logger) {
+func (tc LegacyTestContext) dumpRecentEvents(logger *utils.Logger) {
 	logger.Info("================================================================================")
 	logger.Infof("=== KUBERNETES EVENTS (last %v) ===", eventLookbackDuration)
 	logger.Info("================================================================================")
