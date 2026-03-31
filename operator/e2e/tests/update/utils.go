@@ -40,7 +40,7 @@ import (
 // triggerRollingUpdate triggers a rolling update on the specified cliques and returns a channel
 // that receives an error (or nil) when the rolling update finishes.
 // Uses ts.Workload.Name as the PCS name and ts.Timeout for the wait timeout.
-func (ts *TestSuite) triggerRollingUpdate(expectedReplicas int32, cliqueNames ...string) <-chan error {
+func (ts *TestContext) triggerRollingUpdate(expectedReplicas int32, cliqueNames ...string) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
 		startTime := time.Now()
@@ -300,7 +300,7 @@ func patchPCSWithSIGTERMIgnoringCommand(tc tests.TestContext) error {
 // waitForRollingUpdate starts polling for rolling update completion in the background and returns a channel.
 // Use this when you need to trigger an update separately (e.g., when doing something between trigger and wait).
 // For the common case, use triggerRollingUpdate which combines trigger + wait.
-func (ts *TestSuite) waitForRollingUpdate(expectedReplicas int32) <-chan error {
+func (ts *TestContext) waitForRollingUpdate(expectedReplicas int32) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- ts.waitForRollingUpdateComplete(expectedReplicas)
@@ -310,7 +310,7 @@ func (ts *TestSuite) waitForRollingUpdate(expectedReplicas int32) <-chan error {
 
 // waitForRollingUpdateComplete waits for rolling update to complete by checking UpdatedReplicas.
 // Uses ts.Workload.Name as the PCS name and ts.Timeout for the timeout (use a modified ts if a different timeout is needed).
-func (ts *TestSuite) waitForRollingUpdateComplete(expectedReplicas int32) error {
+func (ts *TestContext) waitForRollingUpdateComplete(expectedReplicas int32) error {
 	pcsGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquesets"}
 	pcsName := ts.Workload.Name
 
@@ -482,7 +482,7 @@ func waitForRollingUpdate(tc tests.TestContext, expectedReplicas int32) <-chan e
 
 // waitForOrdinalUpdating waits for a specific ordinal to start being updated during rolling update.
 // Uses ts.Workload.Name as the PCS name and ts.Timeout for the timeout (use a modified ts if a different timeout is needed).
-func (ts *TestSuite) waitForOrdinalUpdating(ordinal int32) error {
+func (ts *TestContext) waitForOrdinalUpdating(ordinal int32) error {
 	pcsGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquesets"}
 	pcsName := ts.Workload.Name
 
@@ -540,7 +540,7 @@ func (ts *TestSuite) waitForOrdinalUpdating(ordinal int32) error {
 //
 // Only the pod name changes (due to GenerateName), while pod.Spec.Hostname represents the pod's
 // logical position in the workload hierarchy and remains constant.
-func (ts *TestSuite) getPodIdentifier(pod *corev1.Pod) string {
+func (ts *TestContext) getPodIdentifier(pod *corev1.Pod) string {
 	ts.T.Helper()
 
 	// Use hostname as the stable identifier (set by configurePodHostname in pod.go)
@@ -564,7 +564,7 @@ func (ts *TestSuite) getPodIdentifier(pod *corev1.Pod) string {
 //
 // To handle this, we track both ADDED and DELETE events and only consider a hostname
 // as "actively deleting" if there's no replacement pod that was added.
-func (ts *TestSuite) verifyOnePodDeletedAtATime(events []podEvent) {
+func (ts *TestContext) verifyOnePodDeletedAtATime(events []podEvent) {
 	ts.T.Helper()
 
 	// Log all events for debugging
@@ -671,7 +671,7 @@ func (ts *TestSuite) verifyOnePodDeletedAtATime(events []podEvent) {
 //
 // IMPORTANT: This function handles the fact that Kubernetes watch events can arrive out of order.
 // See verifyOnePCSGReplicaDeletedAtATime for detailed explanation.
-func (ts *TestSuite) verifyOnePodDeletedAtATimePerPodclique(events []podEvent) {
+func (ts *TestContext) verifyOnePodDeletedAtATimePerPodclique(events []podEvent) {
 	ts.T.Helper()
 
 	// Track DELETE and ADDED counts separately per podID per PodClique to handle out-of-order events.
@@ -767,7 +767,7 @@ func (ts *TestSuite) verifyOnePodDeletedAtATimePerPodclique(events []podEvent) {
 //
 // To handle this, we track both DELETE and ADDED counts and calculate "actively updating"
 // replicas based on the difference (DELETE > ADDED means the pod is still in-flight).
-func (ts *TestSuite) verifySinglePCSReplicaUpdatedFirst(events []podEvent) {
+func (ts *TestContext) verifySinglePCSReplicaUpdatedFirst(events []podEvent) {
 	ts.T.Helper()
 
 	tests.Logger.Debug("=== Starting verifySinglePCSReplicaUpdatedFirst analysis ===")
@@ -909,7 +909,7 @@ func getReplicaPodCount(m map[int]map[string]int, replicaIdx int, podID string) 
 // The controller considers a replica "update complete" when new pods are READY, not when old
 // pods are fully terminated. So we track by comparing ADDED vs DELETE counts, allowing
 // ADDED to offset DELETE regardless of order.
-func (ts *TestSuite) verifyOnePCSGReplicaDeletedAtATime(events []podEvent) {
+func (ts *TestContext) verifyOnePCSGReplicaDeletedAtATime(events []podEvent) {
 	ts.T.Helper()
 
 	tests.Logger.Debug("=== Starting verifyOnePCSGReplicaDeletedAtATime analysis ===")
@@ -1024,7 +1024,7 @@ func (ts *TestSuite) verifyOnePCSGReplicaDeletedAtATime(events []podEvent) {
 //
 // IMPORTANT: This function handles the fact that Kubernetes watch events can arrive out of order.
 // See verifyOnePCSGReplicaDeletedAtATime for detailed explanation.
-func (ts *TestSuite) verifyOnePCSGReplicaDeletedAtATimePerPCSG(events []podEvent) {
+func (ts *TestContext) verifyOnePCSGReplicaDeletedAtATimePerPCSG(events []podEvent) {
 	ts.T.Helper()
 
 	// Track DELETE and ADDED counts separately per replica per PCSG to handle out-of-order events.
@@ -1105,7 +1105,7 @@ func getCount(m map[string]map[string]int, key1, key2 string) int {
 // Uses ts.Workload.Name as the PCS name.
 // The operation runs asynchronously - receive from the returned channel to block until complete.
 // If delayMs > 0, the operation will sleep for that duration before starting.
-func (ts *TestSuite) scalePodClique(cliqueName string, replicas int32, expectedTotalPods, delayMs int) <-chan error {
+func (ts *TestContext) scalePodClique(cliqueName string, replicas int32, expectedTotalPods, delayMs int) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
 		startTime := time.Now()
@@ -1173,7 +1173,7 @@ func (ts *TestSuite) scalePodClique(cliqueName string, replicas int32, expectedT
 //   - Direct patching of PodClique resources (what this function does)
 //
 // See: internal/controller/podcliqueset/components/podclique/podclique.go buildResource()
-func (ts *TestSuite) scalePodCliqueInPCS(cliqueName string, replicas int32) error {
+func (ts *TestContext) scalePodCliqueInPCS(cliqueName string, replicas int32) error {
 	pcsGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquesets"}
 	pclqGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliques"}
 	pcsName := ts.Workload.Name
@@ -1223,7 +1223,7 @@ func waitForOnDeleteUpdateCompleteWithTimeout(tc tests.TestContext, timeout time
 // setupRollingUpdateTest initializes a rolling update test with the given configuration.
 // It handles:
 // 1. Cluster preparation with required worker nodes
-// 2. TestSuite creation with standard parameters
+// 2. TestContext creation with standard parameters
 // 3. Workload deployment and pod verification
 // 4. Optional SIGTERM patch application (before scaling to apply to original workload)
 // 5. Optional PCS scaling to initial replicas
@@ -1231,10 +1231,10 @@ func waitForOnDeleteUpdateCompleteWithTimeout(tc tests.TestContext, timeout time
 // 7. Tracker creation and startup
 //
 // Returns:
-//   - ts: *TestSuite for the test
+//   - ts: *TestContext for the test
 //   - cleanup: Function that should be deferred by the caller (stops tracker and cleans up cluster)
 //   - tracker: Started rolling update tracker - caller can use tracker.getEvents() after stopping
-func setupRollingUpdateTest(t *testing.T, cfg RollingUpdateTestConfig) (*TestSuite, func(), *rollingUpdateTracker) {
+func setupRollingUpdateTest(t *testing.T, cfg RollingUpdateTestConfig) (*TestContext, func(), *rollingUpdateTracker) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -1245,7 +1245,7 @@ func setupRollingUpdateTest(t *testing.T, cfg RollingUpdateTestConfig) (*TestSui
 	}
 
 	// Step 1+2: Prepare test suite (cluster + clients + managers)
-	ts, suiteCleanup := prepareTestSuite(ctx, t, cfg.WorkerNodes,
+	ts, suiteCleanup := prepareTest(ctx, t, cfg.WorkerNodes,
 		WithNamespace(cfg.Namespace),
 		WithWorkload(&WorkloadConfig{
 			Name:         cfg.WorkloadName,

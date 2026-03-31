@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grove E2E Test Framework Architecture</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --purple: #bc8cff;
+    --red: #f85149;
+    --teal: #39d353;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 2.5rem 0 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  h2 .icon { font-size: 1.1rem; }
+
+  /* ── Diagram ── */
+  .diagram-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    overflow-x: auto;
+    margin-bottom: 2rem;
+  }
+
+  .diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 800px;
+  }
+
+  .node {
+    border-radius: 10px;
+    padding: 1rem 1.5rem;
+    text-align: center;
+    position: relative;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+
+  .node-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 0.25rem;
+  }
+  .node-file {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  .node-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+  }
+  .node-list {
+    text-align: left;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 0.4rem;
+    list-style: none;
+  }
+  .node-list li::before {
+    content: ">";
+    color: var(--accent);
+    margin-right: 0.4rem;
+    font-weight: 600;
+  }
+
+  .connector {
+    width: 2px;
+    height: 24px;
+    background: var(--border);
+    position: relative;
+  }
+  .connector::after {
+    content: "";
+    position: absolute;
+    bottom: -4px;
+    left: -4px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid var(--border);
+  }
+  .connector-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    position: absolute;
+    left: 12px;
+    top: 2px;
+    white-space: nowrap;
+  }
+
+  .split-row {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .split-connector {
+    display: flex;
+    justify-content: center;
+    gap: 200px;
+    margin: 0.25rem 0;
+  }
+
+  /* Node colors */
+  .node-entry {
+    background: linear-gradient(135deg, #1a2744, #1e2d4a);
+    border: 1px solid #264785;
+  }
+  .node-singleton {
+    background: linear-gradient(135deg, #1a3a2a, #1e4433);
+    border: 1px solid #238636;
+  }
+  .node-clients {
+    background: linear-gradient(135deg, #2a1a3a, #331e44);
+    border: 1px solid #6e40c9;
+  }
+  .node-path-new {
+    background: linear-gradient(135deg, #1a2744, #1e2d4a);
+    border: 1px solid #1f6feb;
+    min-width: 220px;
+  }
+  .node-path-legacy {
+    background: linear-gradient(135deg, #3a2a1a, #443318);
+    border: 1px solid #9e6a03;
+    min-width: 220px;
+  }
+  .node-suite {
+    background: linear-gradient(135deg, #0d1b2e, #112240);
+    border: 1px solid var(--accent);
+    min-width: 500px;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 20px;
+    margin-bottom: 0.35rem;
+  }
+  .badge-new { background: rgba(31,111,235,0.2); color: var(--accent); }
+  .badge-legacy { background: rgba(210,153,34,0.2); color: var(--orange); }
+  .badge-singleton { background: rgba(35,134,54,0.2); color: var(--green); }
+
+  /* ── Manager grid ── */
+  .manager-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    transition: border-color 0.15s;
+  }
+  .card:hover { border-color: var(--accent); }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .card-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-blue { background: var(--accent); }
+  .dot-green { background: var(--green); }
+  .dot-purple { background: var(--purple); }
+  .dot-orange { background: var(--orange); }
+  .dot-red { background: var(--red); }
+  .dot-teal { background: var(--teal); }
+
+  .card-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .card-file {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+  }
+  .card-body {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.55;
+  }
+  .card-methods {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .method-tag {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.7rem;
+    background: rgba(88,166,255,0.1);
+    color: var(--accent);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid rgba(88,166,255,0.15);
+  }
+
+  /* ── Comparison table ── */
+  .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+  }
+  .comparison-table th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    background: var(--surface2);
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .comparison-table td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .comparison-table tr:hover td {
+    background: rgba(88,166,255,0.04);
+  }
+  .comparison-table .label-cell {
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .shared-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--green);
+    background: rgba(63,185,80,0.12);
+    padding: 0.1rem 0.45rem;
+    border-radius: 4px;
+  }
+  .per-suite-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--purple);
+    background: rgba(188,140,255,0.12);
+    padding: 0.1rem 0.45rem;
+    border-radius: 4px;
+  }
+
+  /* ── Lifecycle ── */
+  .lifecycle {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    line-height: 1.8;
+    overflow-x: auto;
+    color: var(--text-muted);
+  }
+  .lifecycle .fn { color: var(--accent); font-weight: 600; }
+  .lifecycle .comment { color: #6e7681; }
+  .lifecycle .highlight { color: var(--green); }
+  .lifecycle .warn { color: var(--orange); }
+
+  /* ── Suite fields inside diagram ── */
+  .suite-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 2rem;
+    text-align: left;
+    margin-top: 0.75rem;
+  }
+  .suite-section-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    font-weight: 600;
+    margin-top: 0.5rem;
+    grid-column: 1 / -1;
+    border-top: 1px solid rgba(88,166,255,0.15);
+    padding-top: 0.5rem;
+  }
+  .suite-field {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .suite-field .type { color: var(--purple); }
+
+  /* Section divider */
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.5rem 0 1rem;
+  }
+
+  /* responsive */
+  @media (max-width: 768px) {
+    body { padding: 1rem; }
+    .manager-grid { grid-template-columns: 1fr; }
+    .split-row { flex-direction: column; align-items: center; }
+    .node-suite { min-width: auto; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Grove E2E Test Framework</h1>
+<p class="subtitle">Architecture overview &mdash; component diagram, lifecycle flow, and per-suite configuration</p>
+
+<!-- ───────────── DIAGRAM ───────────── -->
+<h2><span class="icon">&#9670;</span> Component Diagram</h2>
+<div class="diagram-container">
+  <div class="diagram">
+
+    <!-- TestMain -->
+    <div class="node node-entry" style="min-width:460px">
+      <div class="node-title">TestMain</div>
+      <div class="node-file">main_test.go</div>
+      <div class="node-desc">Entry point &mdash; sets up the cluster once for the entire test run</div>
+    </div>
+
+    <div class="connector"><span class="connector-label">creates singleton</span></div>
+
+    <!-- SharedClusterManager -->
+    <div class="node node-singleton" style="min-width:420px">
+      <span class="badge badge-singleton">singleton</span>
+      <div class="node-title">SharedClusterManager</div>
+      <div class="node-file">setup/shared_cluster.go</div>
+      <ul class="node-list">
+        <li>Setup / Teardown cluster</li>
+        <li>PrepareForTest &mdash; cordon/uncordon nodes</li>
+        <li>CleanupWorkloads &mdash; remove resources between tests</li>
+        <li>Creates k8s.Clients once, reused everywhere</li>
+      </ul>
+    </div>
+
+    <div class="connector"><span class="connector-label">GetAllClients()</span></div>
+
+    <!-- k8s.Clients -->
+    <div class="node node-clients" style="min-width:360px">
+      <div class="node-title">k8s.Clients</div>
+      <div class="node-file">k8s/clients.go</div>
+      <ul class="node-list">
+        <li>Clientset &nbsp;<span style="color:var(--purple)">(kubernetes.Interface)</span></li>
+        <li>DynamicClient &nbsp;<span style="color:var(--purple)">(dynamic.Interface)</span></li>
+        <li>CRClient &nbsp;<span style="color:var(--purple)">(client.Client)</span></li>
+        <li>RestMapper &middot; RestConfig</li>
+      </ul>
+    </div>
+
+    <div class="connector"><span class="connector-label">shared reference</span></div>
+
+    <!-- Two paths -->
+    <div class="split-row">
+      <div class="node node-path-new">
+        <span class="badge badge-new">new path</span>
+        <div class="node-title">prepareTest()</div>
+        <div class="node-file">suite.go:123</div>
+        <div class="node-desc" style="margin-top:0.5rem; font-size:0.75rem">
+          Used by: topology, gang scheduling, scale, startup ordering, rolling updates, cert management
+        </div>
+      </div>
+      <div class="node node-path-legacy">
+        <span class="badge badge-legacy">legacy path</span>
+        <div class="node-title">prepareTestCluster()</div>
+        <div class="node-file">setup.go:174</div>
+        <div class="node-desc" style="margin-top:0.5rem; font-size:0.75rem">
+          Used by: auto-mnnvl/ tests<br>
+          Returns raw clientCollection + cleanup
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:220px">
+      <div class="connector"></div>
+    </div>
+
+    <!-- TestContext -->
+    <div class="node node-suite">
+      <div class="node-title" style="font-size:1.1rem">TestContext</div>
+      <div class="node-file">tests/suite.go</div>
+
+      <div class="suite-inner">
+        <div class="suite-field">T &nbsp;<span class="type">*testing.T</span></div>
+        <div class="suite-field">Ctx &nbsp;<span class="type">context.Context</span></div>
+        <div class="suite-field">Clients &nbsp;<span class="type">*k8s.Clients</span></div>
+        <div class="suite-field">Namespace &nbsp;<span class="type">string</span></div>
+        <div class="suite-field">Timeout &nbsp;<span class="type">time.Duration</span></div>
+        <div class="suite-field">Workload &nbsp;<span class="type">*WorkloadConfig</span></div>
+
+        <div class="suite-section-title">K8s Managers</div>
+        <div class="suite-field">Pods &nbsp;<span class="type">*PodManager</span></div>
+        <div class="suite-field">Nodes &nbsp;<span class="type">*NodeManager</span></div>
+        <div class="suite-field" style="grid-column:1/-1">Resources &nbsp;<span class="type">*ResourceManager</span></div>
+
+        <div class="suite-section-title">Grove Managers</div>
+        <div class="suite-field">Workloads &nbsp;<span class="type">*WorkloadManager</span></div>
+        <div class="suite-field">Topology &nbsp;<span class="type">*TopologyVerifier</span></div>
+        <div class="suite-field">PodGroups &nbsp;<span class="type">*PodGroupVerifier</span></div>
+        <div class="suite-field">Config &nbsp;<span class="type">*OperatorConfig</span></div>
+
+        <div class="suite-section-title">Diagnostics</div>
+        <div class="suite-field" style="grid-column:1/-1">Diag &nbsp;<span class="type">*DiagCollector</span></div>
+      </div>
+
+      <div class="node-desc" style="margin-top:0.75rem">
+        Convenience methods: ListPods, WaitForPods, ScalePCS, DeployAndVerifyWorkload, &hellip;<br>
+        <span style="color:var(--text-muted);font-size:0.75rem">(delegate to managers with suite-scoped defaults)</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ───────────── SHARED vs PER-SUITE ───────────── -->
+<hr class="section-divider">
+<h2><span class="icon">&#9670;</span> Shared Cluster vs Per-Suite Configuration</h2>
+<p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem">
+  All tests run against the <strong style="color:var(--text)">same physical cluster</strong> and reuse the
+  <strong style="color:var(--text)">same <code>*k8s.Clients</code></strong> instance.
+  The suite is a <em>per-test view</em>: "give me N nodes, this workload, these timeouts, and fresh manager wrappers."
+</p>
+
+<table class="comparison-table">
+  <thead>
+    <tr>
+      <th>Aspect</th>
+      <th>Scope</th>
+      <th>Details</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="label-cell">Cluster</td>
+      <td><span class="shared-tag">shared</span></td>
+      <td>Single cluster for the entire test run</td>
+    </tr>
+    <tr>
+      <td class="label-cell">K8s Clients</td>
+      <td><span class="shared-tag">shared</span></td>
+      <td>One <code>*k8s.Clients</code> instance created in <code>TestMain</code></td>
+    </tr>
+    <tr>
+      <td class="label-cell">Available Nodes</td>
+      <td><span class="per-suite-tag">per-suite</span></td>
+      <td><code>requiredWorkerNodes</code> arg controls how many nodes are uncordoned</td>
+    </tr>
+    <tr>
+      <td class="label-cell">Workload</td>
+      <td><span class="per-suite-tag">per-suite</span></td>
+      <td>Each test provides its own <code>WorkloadConfig</code> (YAML path, expected pods, name)</td>
+    </tr>
+    <tr>
+      <td class="label-cell">Timeouts</td>
+      <td><span class="per-suite-tag">per-suite</span></td>
+      <td>Optionally overridden via <code>WithTimeout()</code> / <code>WithInterval()</code> (e.g. scale tests: 15m vs default 4m)</td>
+    </tr>
+    <tr>
+      <td class="label-cell">Manager Instances</td>
+      <td><span class="per-suite-tag">per-suite</span></td>
+      <td>Fresh structs per suite, but all point to the shared <code>*k8s.Clients</code></td>
+    </tr>
+    <tr>
+      <td class="label-cell">Diagnostics</td>
+      <td><span class="per-suite-tag">per-suite</span></td>
+      <td>Fresh <code>DiagCollector</code> scoped to the test name for output files</td>
+    </tr>
+    <tr>
+      <td class="label-cell">Resource State</td>
+      <td><span class="per-suite-tag">per-suite</span></td>
+      <td><code>cleanup()</code> calls <code>CleanupWorkloads()</code> after each test &mdash; each suite starts clean</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ───────────── LIFECYCLE ───────────── -->
+<hr class="section-divider">
+<h2><span class="icon">&#9670;</span> Lifecycle Flow</h2>
+<div class="lifecycle">
+<span class="fn">TestMain</span>
+<br>&nbsp;&nbsp;|
+<br>&nbsp;&nbsp;+-- <span class="fn">SharedClusterManager.Setup()</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// connect to cluster, create Clients once</span>
+<br>&nbsp;&nbsp;|
+<br>&nbsp;&nbsp;+-- <span class="highlight">test_topology(t)</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// uses NEW path (TestContext)</span>
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- <span class="fn">prepareTest</span>(ctx, t, 28, WithWorkload(...))
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- SharedCluster.<span class="fn">PrepareForTest()</span> &nbsp;&nbsp;<span class="comment">// cordon excess nodes</span>
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- SharedCluster.<span class="fn">GetAllClients()</span> &nbsp;&nbsp;<span class="comment">// reuse shared *Clients</span>
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- <span class="fn">NewTestContext</span>(t, ctx, clients) &nbsp;<span class="comment">// instantiate all managers</span>
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- ts.<span class="fn">DeployAndVerifyWorkload()</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// high-level helpers</span>
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- ts.Topology.<span class="fn">VerifyPodsInSame...()</span> &nbsp;<span class="comment">// domain managers</span>
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- ts.PodGroups.<span class="fn">VerifySubGroups()</span>
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- <span class="warn">cleanup()</span>
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+-- if failed: ts.Diag.<span class="fn">CollectAll()</span> &nbsp;&nbsp;<span class="comment">// dump diagnostics</span>
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+-- SharedCluster.<span class="fn">CleanupWorkloads()</span> <span class="comment">// remove all test resources</span>
+<br>&nbsp;&nbsp;|
+<br>&nbsp;&nbsp;+-- <span class="warn">test_auto_mnnvl(t)</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// uses LEGACY path (TestContext)</span>
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- <span class="fn">prepareTestCluster</span>(ctx, t, 0)
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- uses raw clients + util functions
+<br>&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;+-- <span class="warn">cleanup()</span> &rarr; CleanupWorkloads()
+<br>&nbsp;&nbsp;|
+<br>&nbsp;&nbsp;+-- <span class="fn">SharedClusterManager.Teardown()</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// final cleanup</span>
+</div>
+
+<!-- ───────────── K8S MANAGERS ───────────── -->
+<hr class="section-divider">
+<h2><span class="icon">&#9670;</span> K8s Managers <span style="font-size:0.8rem;font-weight:400;color:var(--text-muted)">&mdash; k8s/</span></h2>
+<div class="manager-grid">
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-blue"></div><span class="card-title">PodManager</span></div>
+    <div class="card-file">k8s/pods.go</div>
+    <div class="card-body">
+      Handles pod lifecycle queries: listing, waiting for specific counts, readiness, and counting by phase (Running/Pending/Failed). The most frequently used manager in workload verification.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">List</span>
+      <span class="method-tag">WaitForReady</span>
+      <span class="method-tag">WaitForCount</span>
+      <span class="method-tag">WaitForCountAndPhases</span>
+      <span class="method-tag">CountByPhase</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-blue"></div><span class="card-title">NodeManager</span></div>
+    <div class="card-file">k8s/nodes.go</div>
+    <div class="card-body">
+      Controls node scheduling state. Cordons/uncordons nodes to simulate cluster constraints. Used by <code>PrepareForTest()</code> to control how many worker nodes are available per test.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">Cordon</span>
+      <span class="method-tag">Uncordon</span>
+      <span class="method-tag">CordonAll</span>
+      <span class="method-tag">GetWorkerNodes</span>
+      <span class="method-tag">WaitAndGetReady</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-blue"></div><span class="card-title">ResourceManager</span></div>
+    <div class="card-file">k8s/resources.go</div>
+    <div class="card-body">
+      Applies Kubernetes resources from YAML (single or multi-document), handles namespace injection and create-or-update semantics. Also scales CRDs by patching replica count.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">ApplyYAMLFile</span>
+      <span class="method-tag">ApplyYAMLData</span>
+      <span class="method-tag">ScaleCRD</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-teal"></div><span class="card-title">PollForCondition</span></div>
+    <div class="card-file">k8s/polling.go</div>
+    <div class="card-body">
+      Core polling primitive. Retries a condition function at a configurable interval until timeout or success. All "wait for X" methods across all managers are built on this.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">PollForCondition(ctx, timeout, interval, fn)</span>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── GROVE MANAGERS ───────────── -->
+<hr class="section-divider">
+<h2><span class="icon">&#9670;</span> Grove Managers <span style="font-size:0.8rem;font-weight:400;color:var(--text-muted)">&mdash; grove/</span></h2>
+<div class="manager-grid">
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-green"></div><span class="card-title">WorkloadManager</span></div>
+    <div class="card-file">grove/workload.go</div>
+    <div class="card-body">
+      Domain-specific manager for Grove workloads (PodCliqueSet, PodCliqueScalingGroup). Composes <code>ResourceManager</code> + <code>PodManager</code> for higher-level operations. <strong>The only manager that depends on other managers.</strong>
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">ScalePCS</span>
+      <span class="method-tag">ScalePCSG</span>
+      <span class="method-tag">DeletePCS</span>
+      <span class="method-tag">WaitForPCSG</span>
+      <span class="method-tag">WaitForPodClique</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-green"></div><span class="card-title">TopologyVerifier</span></div>
+    <div class="card-file">grove/topology.go</div>
+    <div class="card-body">
+      Validates pod placement against topology constraints. Checks pods within a replica land in the same domain (rack/switch) and PCSG replicas are distributed correctly.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">VerifyClusterTopologyLevels</span>
+      <span class="method-tag">VerifyPodsInSameTopologyDomain</span>
+      <span class="method-tag">VerifyPCSGReplicas</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-green"></div><span class="card-title">PodGroupVerifier</span></div>
+    <div class="card-file">grove/podgroup.go</div>
+    <div class="card-body">
+      Verifies KAI PodGroup resources for gang scheduling coordination. Checks topology constraints, subgroup structure, and parent-child relationships.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">GetKAIPodGroups</span>
+      <span class="method-tag">WaitForKAIPodGroups</span>
+      <span class="method-tag">VerifyTopologyConstraint</span>
+      <span class="method-tag">VerifySubGroups</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-green"></div><span class="card-title">OperatorConfig</span></div>
+    <div class="card-file">grove/config.go</div>
+    <div class="card-body">
+      Reads the Grove operator's runtime configuration and metadata (image version, settings) from the cluster. Used for assertions about operator state.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">ReadGroveMetadata</span>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── SUPPORT COMPONENTS ───────────── -->
+<hr class="section-divider">
+<h2><span class="icon">&#9670;</span> Support Components</h2>
+<div class="manager-grid">
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-red"></div><span class="card-title">DiagCollector</span></div>
+    <div class="card-file">diagnostics/collector.go</div>
+    <div class="card-body">
+      Activated on test failure. Dumps operator logs, Grove custom resources, pod details, and recent K8s events to stdout or files. Provides forensic data for debugging without cluster access.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">CollectAll</span>
+      <span class="method-tag">dumpOperatorLogs</span>
+      <span class="method-tag">dumpGroveResources</span>
+      <span class="method-tag">dumpPodDetails</span>
+      <span class="method-tag">dumpRecentEvents</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-orange"></div><span class="card-title">Logger</span></div>
+    <div class="card-file">utils/logger.go</div>
+    <div class="card-body">
+      Structured logging wrapper around zap. Provides leveled logging (Debug/Info/Warn/Error) and an <code>io.Writer</code> adapter for redirecting command output.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">Debugf</span>
+      <span class="method-tag">Infof</span>
+      <span class="method-tag">Warnf</span>
+      <span class="method-tag">Errorf</span>
+      <span class="method-tag">WriterLevel</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-purple"></div><span class="card-title">WorkloadConfig</span></div>
+    <div class="card-file">tests/setup.go</div>
+    <div class="card-body">
+      Simple config struct pairing a workload name with its YAML path, namespace, and expected pod count. Generates the label selector <code>app.kubernetes.io/part-of=&lt;name&gt;</code>.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">GetLabelSelector</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-purple"></div><span class="card-title">Measurement Framework</span></div>
+    <div class="card-file">utils/measurement/</div>
+    <div class="card-body">
+      Optional performance tracking. Defines phases and milestones within a test, tracks timing, and produces structured results for benchmarking deployment times.
+    </div>
+    <div class="card-methods">
+      <span class="method-tag">Phase</span>
+      <span class="method-tag">Milestone</span>
+      <span class="method-tag">TrackerResult</span>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── MIGRATION COMPARISON ───────────── -->
+<hr class="section-divider">
+<h2><span class="icon">&#9670;</span> LegacyTestContext vs TestContext</h2>
+<p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1.5rem">
+  The refactor changed how tests <strong style="color:var(--text)">consume</strong> the shared cluster and clients.
+  The cluster lifecycle itself (<code>SharedClusterManager</code>) is identical in both paths.
+</p>
+
+<!-- Comparison 1: Client Ownership -->
+<div class="card" style="margin-bottom:1rem">
+  <div class="card-header">
+    <div class="card-dot dot-purple"></div>
+    <span class="card-title">1. Client Ownership: Scattered Fields vs Bundled Struct</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.75rem">
+    <div>
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem">
+        <span class="badge badge-legacy">legacy &mdash; LegacyTestContext</span>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-family:'SF Mono','Fira Code',monospace;font-size:0.75rem;line-height:1.7">
+        <span style="color:var(--orange)">type</span> <span style="color:var(--text)">LegacyTestContext</span> <span style="color:var(--orange)">struct</span> {<br>
+        &nbsp;&nbsp;Clientset &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--purple)">kubernetes.Interface</span><br>
+        &nbsp;&nbsp;DynamicClient &nbsp;<span style="color:var(--purple)">dynamic.Interface</span><br>
+        &nbsp;&nbsp;RestMapper &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--purple)">meta.RESTMapper</span><br>
+        &nbsp;&nbsp;RestConfig &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--purple)">*rest.Config</span><br>
+        &nbsp;&nbsp;CRClient &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--purple)">client.Client</span><br>
+        &nbsp;&nbsp;<span style="color:#6e7681">// + Namespace, Timeout, etc.</span><br>
+        }
+      </div>
+      <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem">
+        5 separate client fields on the struct. Also requires a <code>clientCollection</code> intermediary to unpack <code>*k8s.Clients</code> back into individual fields.
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem">
+        <span class="badge badge-new">new &mdash; TestContext</span>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-family:'SF Mono','Fira Code',monospace;font-size:0.75rem;line-height:1.7">
+        <span style="color:var(--accent)">type</span> <span style="color:var(--text)">TestContext</span> <span style="color:var(--accent)">struct</span> {<br>
+        &nbsp;&nbsp;Clients &nbsp;<span style="color:var(--purple)">*k8s.Clients</span> <span style="color:#6e7681">// all 5 in one</span><br>
+        &nbsp;&nbsp;Pods &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--purple)">*PodManager</span><br>
+        &nbsp;&nbsp;Nodes &nbsp;&nbsp;&nbsp;<span style="color:var(--purple)">*NodeManager</span><br>
+        &nbsp;&nbsp;Resources <span style="color:var(--purple)">*ResourceManager</span><br>
+        &nbsp;&nbsp;<span style="color:#6e7681">// + Grove managers, Diag, etc.</span><br>
+        }
+      </div>
+      <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem">
+        Single <code>*k8s.Clients</code> bundle passed to managers at construction. No unpacking needed.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison 2: Operations -->
+<div class="card" style="margin-bottom:1rem">
+  <div class="card-header">
+    <div class="card-dot dot-blue"></div>
+    <span class="card-title">2. Operations: Wrapper Functions vs Domain Managers</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.75rem">
+    <div>
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem">
+        <span class="badge badge-legacy">legacy</span>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-family:'SF Mono','Fira Code',monospace;font-size:0.72rem;line-height:1.7">
+        <span style="color:#6e7681">// thin wrapper &rarr; standalone util func</span><br>
+        <span style="color:var(--orange)">func</span> (tc LegacyTestContext) <span style="color:var(--text)">listPods</span>() {<br>
+        &nbsp;&nbsp;<span style="color:var(--orange)">return</span> utils.ListPods(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;tc.Ctx, <span style="color:var(--red)">tc.Clientset</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;tc.Namespace, ...)<br>
+        }<br><br>
+        <span style="color:var(--orange)">func</span> (tc LegacyTestContext) <span style="color:var(--text)">cordonNode</span>(n) {<br>
+        &nbsp;&nbsp;<span style="color:var(--orange)">return</span> utils.SetNodeSchedulable(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;tc.Ctx, <span style="color:var(--red)">tc.Clientset</span>, n, false)<br>
+        }
+      </div>
+      <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem">
+        Every method manually threads the right client. Logic lives in <code>utils</code> package as free functions.
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem">
+        <span class="badge badge-new">new</span>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-family:'SF Mono','Fira Code',monospace;font-size:0.72rem;line-height:1.7">
+        <span style="color:#6e7681">// delegates to manager (client inside)</span><br>
+        <span style="color:var(--accent)">func</span> (ts *TestContext) <span style="color:var(--text)">ListPods</span>() {<br>
+        &nbsp;&nbsp;<span style="color:var(--accent)">return</span> <span style="color:var(--green)">ts.Pods</span>.List(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;ts.Ctx, ts.Namespace, ...)<br>
+        }<br><br>
+        <span style="color:var(--accent)">func</span> (ts *TestContext) <span style="color:var(--text)">CordonNode</span>(n) {<br>
+        &nbsp;&nbsp;<span style="color:var(--accent)">return</span> <span style="color:var(--green)">ts.Nodes</span>.Cordon(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;ts.Ctx, n)<br>
+        }
+      </div>
+      <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem">
+        Managers encapsulate the client reference. No need to pass it per call.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison 3: Diagnostics -->
+<div class="card" style="margin-bottom:1rem">
+  <div class="card-header">
+    <div class="card-dot dot-red"></div>
+    <span class="card-title">3. Diagnostics: Inline Methods vs Dedicated DiagCollector</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.75rem">
+    <div>
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem">
+        <span class="badge badge-legacy">legacy</span>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-family:'SF Mono','Fira Code',monospace;font-size:0.72rem;line-height:1.7">
+        <span style="color:#6e7681">// methods on LegacyTestContext itself</span><br>
+        <span style="color:#6e7681">// in debug_utils.go (~400 lines)</span><br><br>
+        tc.<span style="color:var(--text)">CollectAllDiagnostics</span>()<br>
+        tc.<span style="color:var(--text)">dumpOperatorLogs</span>(logger)<br>
+        tc.<span style="color:var(--text)">dumpGroveResources</span>(logger)<br>
+        tc.<span style="color:var(--text)">dumpPodDetails</span>(logger)<br>
+        tc.<span style="color:var(--text)">dumpRecentEvents</span>(logger)
+      </div>
+      <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem">
+        Diagnostics methods live directly on <code>LegacyTestContext</code>. Uses <code>tc.Clientset</code> and <code>tc.DynamicClient</code> inline. File output handled within the methods.
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem">
+        <span class="badge badge-new">new</span>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-family:'SF Mono','Fira Code',monospace;font-size:0.72rem;line-height:1.7">
+        <span style="color:#6e7681">// separate struct in diagnostics/</span><br><br>
+        ts.Diag = diagnostics.<span style="color:var(--text)">NewDiagCollector</span>(<br>
+        &nbsp;&nbsp;clients, ns, mode, dir, logger)<br><br>
+        ts.Diag.<span style="color:var(--text)">CollectAll</span>(t.Name())
+      </div>
+      <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem">
+        Dedicated <code>*DiagCollector</code> struct in its own package. Initialized once per suite with all config. Single method to trigger collection.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison 4: Cleanup -->
+<div class="card" style="margin-bottom:1rem">
+  <div class="card-header">
+    <div class="card-dot dot-orange"></div>
+    <span class="card-title">4. Cleanup: Manual Wiring vs Consistent Pattern</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.75rem">
+    <div>
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem">
+        <span class="badge badge-legacy">legacy</span>
+        <span style="font-size:0.72rem;color:var(--text-muted);font-family:'SF Mono','Fira Code',monospace">setup.go:196-229</span>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-family:'SF Mono','Fira Code',monospace;font-size:0.72rem;line-height:1.7">
+        cleanup := <span style="color:var(--orange)">func</span>() {<br>
+        &nbsp;&nbsp;<span style="color:#6e7681">// manually create LegacyTestContext</span><br>
+        &nbsp;&nbsp;<span style="color:#6e7681">// JUST for diagnostics</span><br>
+        &nbsp;&nbsp;diagTc := <span style="color:var(--red)">LegacyTestContext</span>{<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;T: t,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;Clientset: clients.Clientset,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;DynamicClient: clients.DynamicClient,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;RestMapper: clients.RestMapper,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;Namespace: "default",<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;DiagMode: diagMode,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;DiagDir: diagDir,<br>
+        &nbsp;&nbsp;}<br>
+        &nbsp;&nbsp;<span style="color:var(--orange)">if</span> t.Failed() {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;diagTc.CollectAllDiagnostics()<br>
+        &nbsp;&nbsp;}<br>
+        &nbsp;&nbsp;sharedCluster.CleanupWorkloads(ctx)<br>
+        }
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem">
+        <span class="badge badge-new">new</span>
+        <span style="font-size:0.72rem;color:var(--text-muted);font-family:'SF Mono','Fira Code',monospace">suite.go:134-148</span>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-family:'SF Mono','Fira Code',monospace;font-size:0.72rem;line-height:1.7">
+        cleanup := <span style="color:var(--accent)">func</span>() {<br>
+        &nbsp;&nbsp;<span style="color:var(--accent)">if</span> t.Failed() {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--green)">ts.Diag</span>.CollectAll(t.Name())<br>
+        &nbsp;&nbsp;}<br>
+        &nbsp;&nbsp;sharedCluster.CleanupWorkloads(ctx)<br>
+        }
+      </div>
+      <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.75rem">
+        Uses the already-constructed test context. No manual struct assembly. DiagCollector was initialized in <code>NewTestContext()</code>.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison 5: auto-mnnvl -->
+<div class="card" style="margin-bottom:1rem">
+  <div class="card-header">
+    <div class="card-dot dot-orange"></div>
+    <span class="card-title">5. The auto-mnnvl Special Case</span>
+  </div>
+  <div class="card-body">
+    The <code>auto-mnnvl/</code> tests have their own <code>testContext</code> (lowercase, different type in <code>testutils.go</code>)
+    and their own <code>prepareTestCluster()</code> that returns raw clients individually:
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-family:'SF Mono','Fira Code',monospace;font-size:0.72rem;line-height:1.7;margin-top:0.5rem">
+      clientset, restConfig, dynamicClient, groveClient, cleanup := prepareTestCluster(ctx, t, 0)
+    </div>
+    <div style="margin-top:0.5rem">
+      They don't use <code>TestContext</code> from <code>setup.go</code> at all &mdash; they call <code>SharedCluster</code> directly and pass raw clients around. This is a third variant that predates both abstractions.
+    </div>
+  </div>
+</div>
+
+<!-- What stayed the same -->
+<div class="card" style="border-color:var(--green);margin-bottom:1rem">
+  <div class="card-header">
+    <div class="card-dot dot-green"></div>
+    <span class="card-title">6. What Stayed the Same</span>
+  </div>
+  <div class="card-body">
+    Both paths go through <code>SharedClusterManager</code> identically:
+    <div style="display:flex;flex-direction:column;gap:0.35rem;margin-top:0.75rem">
+      <div style="display:flex;align-items:center;gap:0.5rem">
+        <span class="method-tag">SharedCluster.PrepareForTest(ctx, N)</span>
+        <span style="color:var(--text-muted);font-size:0.8rem">cordon/uncordon nodes</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.5rem">
+        <span class="method-tag">SharedCluster.GetAllClients()</span>
+        <span style="color:var(--text-muted);font-size:0.8rem">same shared *k8s.Clients</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.5rem">
+        <span class="method-tag">SharedCluster.CleanupWorkloads(ctx)</span>
+        <span style="color:var(--text-muted);font-size:0.8rem">same resource cleanup</span>
+      </div>
+    </div>
+    <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:0.85rem">
+      The cluster lifecycle and client creation are identical. The refactor only changed how tests <strong style="color:var(--text)">consume</strong> those shared resources.
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;color:var(--text-muted);font-size:0.75rem;margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border)">
+  Grove E2E Architecture &mdash; auto-generated from codebase analysis
+</div>
+
+</body>
+</html>

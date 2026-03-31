@@ -82,9 +82,9 @@ const (
 	LabelPodCliqueScalingGroup = "grove.io/podcliquescalinggroup"
 )
 
-// Deprecated: Use TestSuite instead. TestContext is kept for backward compatibility
+// Deprecated: Use TestContext instead. LegacyTestContext is kept for backward compatibility
 // with debug_utils.go and will be removed once all consumers are migrated.
-type TestContext struct {
+type LegacyTestContext struct {
 	T             *testing.T
 	Ctx           context.Context
 	Clientset     kubernetes.Interface
@@ -103,28 +103,28 @@ type TestContext struct {
 	DiagDir  string // Directory for diagnostics files (empty uses current dir)
 }
 
-// PollForCondition is a wrapper around utils.PollForCondition that accepts TestContext
-func PollForCondition(tc TestContext, condition func() (bool, error)) error {
+// pollForCondition is a wrapper around utils.PollForCondition
+func (tc LegacyTestContext) pollForCondition(condition func() (bool, error)) error {
 	return utils.PollForCondition(tc.Ctx, tc.Timeout, tc.Interval, condition)
 }
 
-// ListPods is a wrapper around utils.ListPods that accepts TestContext
-func ListPods(tc TestContext) (*v1.PodList, error) {
-	return utils.ListPods(tc.Ctx, tc.Clientset, tc.Namespace, tc.GetLabelSelector())
+// listPods is a wrapper around utils.ListPods
+func (tc LegacyTestContext) listPods() (*v1.PodList, error) {
+	return utils.ListPods(tc.Ctx, tc.Clientset, tc.Namespace, tc.getLabelSelector())
 }
 
-// WaitForPods is a wrapper around utils.WaitForPods that accepts TestContext
-func WaitForPods(tc TestContext, expectedCount int) error {
-	return utils.WaitForPods(tc.Ctx, tc.RestConfig, []string{tc.Namespace}, tc.GetLabelSelector(), expectedCount, tc.Timeout, tc.Interval, Logger)
+// waitForPods is a wrapper around utils.WaitForPodsWithClientset
+func (tc LegacyTestContext) waitForPods(expectedCount int) error {
+	return utils.WaitForPodsWithClientset(tc.Ctx, tc.Clientset, []string{tc.Namespace}, tc.getLabelSelector(), expectedCount, tc.Timeout, tc.Interval, logger)
 }
 
 // cordonNode is a wrapper around utils.SetNodeSchedulable
-func (tc TestContext) cordonNode(nodeName string) error {
+func (tc LegacyTestContext) cordonNode(nodeName string) error {
 	return utils.SetNodeSchedulable(tc.Ctx, tc.Clientset, nodeName, false)
 }
 
 // uncordonNode is a wrapper around utils.SetNodeSchedulable
-func (tc TestContext) uncordonNode(nodeName string) error {
+func (tc LegacyTestContext) uncordonNode(nodeName string) error {
 	return utils.SetNodeSchedulable(tc.Ctx, tc.Clientset, nodeName, true)
 }
 
@@ -132,28 +132,28 @@ func (tc TestContext) uncordonNode(nodeName string) error {
 // This scales the PCSG instance directly by patching its spec.replicas field.
 // This is the correct approach for scaling existing PCSGs since the PCS controller only sets PCSG replicas
 // during initial creation to support HPA scaling.
-func (tc TestContext) scalePodCliqueScalingGroup(name string, replicas int) error {
+func (tc LegacyTestContext) scalePodCliqueScalingGroup(name string, replicas int) error {
 	return utils.ScalePodCliqueScalingGroupWithClient(tc.Ctx, tc.DynamicClient, tc.Namespace, name, replicas, tc.Timeout, tc.Interval)
 }
 
 // scalePodCliqueSet is a wrapper around utils.ScalePodCliqueSetWithClient
-func (tc TestContext) scalePodCliqueSet(name string, replicas int) error {
+func (tc LegacyTestContext) scalePodCliqueSet(name string, replicas int) error {
 	return utils.ScalePodCliqueSetWithClient(tc.Ctx, tc.DynamicClient, tc.Namespace, name, replicas)
 }
 
-// applyYAMLFile is a wrapper around utils.ApplyYAMLFile that accepts TestContext
-func applyYAMLFile(tc TestContext, yamlPath string) ([]utils.AppliedResource, error) {
-	return utils.ApplyYAMLFile(tc.Ctx, yamlPath, tc.Namespace, tc.RestConfig, Logger)
+// applyYAMLFile is a wrapper around utils.ApplyYAMLFileWithClients
+func (tc LegacyTestContext) applyYAMLFile(yamlPath string) ([]utils.AppliedResource, error) {
+	return utils.ApplyYAMLFileWithClients(tc.Ctx, yamlPath, tc.Namespace, tc.DynamicClient, tc.RestMapper, logger)
 }
 
-// WaitForPodCount is a wrapper around utils.WaitForPodCount that accepts TestContext
-func WaitForPodCount(tc TestContext, expectedCount int) (*v1.PodList, error) {
-	return utils.WaitForPodCount(tc.Ctx, tc.Clientset, tc.Namespace, tc.GetLabelSelector(), expectedCount, tc.Timeout, tc.Interval)
+// waitForPodCount is a wrapper around utils.WaitForPodCount
+func (tc LegacyTestContext) waitForPodCount(expectedCount int) (*v1.PodList, error) {
+	return utils.WaitForPodCount(tc.Ctx, tc.Clientset, tc.Namespace, tc.getLabelSelector(), expectedCount, tc.Timeout, tc.Interval)
 }
 
-// waitForPodCountAndPhases is a wrapper around utils.WaitForPodCountAndPhases that accepts TestContext
-func waitForPodCountAndPhases(tc TestContext, expectedTotal, expectedRunning, expectedPending int) error {
-	return utils.WaitForPodCountAndPhases(tc.Ctx, tc.Clientset, tc.Namespace, tc.GetLabelSelector(), expectedTotal, expectedRunning, expectedPending, tc.Timeout, tc.Interval)
+// waitForPodCountAndPhases is a wrapper around utils.WaitForPodCountAndPhases
+func (tc LegacyTestContext) waitForPodCountAndPhases(expectedTotal, expectedRunning, expectedPending int) error {
+	return utils.WaitForPodCountAndPhases(tc.Ctx, tc.Clientset, tc.Namespace, tc.getLabelSelector(), expectedTotal, expectedRunning, expectedPending, tc.Timeout, tc.Interval)
 }
 
 // clientCollection holds all Kubernetes clients needed by tests.
@@ -192,9 +192,9 @@ func PrepareTestCluster(ctx context.Context, t *testing.T, requiredWorkerNodes i
 	clients := sharedCluster.GetAllClients()
 
 	cleanup := func() {
-		// Create a TestContext for diagnostics collection
+		// Create a LegacyTestContext for diagnostics collection
 		// Uses "default" namespace since that's where most test workloads run
-		diagnosticsTc := TestContext{
+		diagnosticsTc := LegacyTestContext{
 			T:             t,
 			Ctx:           ctx,
 			Clientset:     clients.Clientset,
@@ -246,7 +246,7 @@ func clientCollectionFromClients(c *k8s.Clients) clientCollection {
 
 // getWorkerNodes retrieves the names of all worker nodes in the cluster,
 // excluding control plane nodes. Returns an error if the node list cannot be retrieved.
-func GetWorkerNodes(tc TestContext) ([]string, error) {
+func (tc LegacyTestContext) getWorkerNodes() ([]string, error) {
 	nodes, err := tc.Clientset.CoreV1().Nodes().List(tc.Ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list nodes: %w", err)
@@ -281,7 +281,7 @@ func assertPodsOnDistinctNodes(t *testing.T, pods []v1.Pod) {
 
 // listPodsAndAssertDistinctNodes lists pods and asserts they are on distinct nodes in one call.
 // This helper reduces the repetitive pattern of listing pods, checking errors, and asserting.
-func (tc TestContext) listPodsAndAssertDistinctNodes() {
+func (tc LegacyTestContext) listPodsAndAssertDistinctNodes() {
 	tc.T.Helper()
 	pods, err := ListPods(tc)
 	if err != nil {
@@ -292,9 +292,9 @@ func (tc TestContext) listPodsAndAssertDistinctNodes() {
 
 // verifyAllPodsArePending verifies that all pods matching the label selector are in pending state.
 // Returns an error if verification fails or timeout occurs.
-func verifyAllPodsArePending(tc TestContext) error {
-	return PollForCondition(tc, func() (bool, error) {
-		pods, err := ListPods(tc)
+func (tc LegacyTestContext) verifyAllPodsArePending() error {
+	return tc.pollForCondition(func() (bool, error) {
+		pods, err := tc.listPods()
 		if err != nil {
 			return false, err
 		}
@@ -315,7 +315,7 @@ func verifyAllPodsArePending(tc TestContext) error {
 // If allPodsMustBePending is true, verifies ALL pods are pending; otherwise only checks pending pods for Unschedulable events.
 // expectedPendingCount is the expected number of pending pods (pass 0 to skip count validation)
 // Returns an error if verification fails, or nil if successful after finding Unschedulable events for all (pending) pods.
-func (tc TestContext) verifyPodsArePendingWithUnschedulableEvents(allPodsMustBePending bool, expectedPendingCount int) error {
+func (tc LegacyTestContext) verifyPodsArePendingWithUnschedulableEvents(allPodsMustBePending bool, expectedPendingCount int) error {
 	// First verify all pods are pending if required
 	if allPodsMustBePending {
 		if err := tc.verifyAllPodsArePending(); err != nil {
@@ -388,7 +388,7 @@ func (tc TestContext) verifyPodsArePendingWithUnschedulableEvents(allPodsMustBeP
 
 // waitForPodConditions polls until the expected pod state is reached or timeout occurs.
 // Returns the current state (total, running, pending) for logging purposes.
-func (tc TestContext) waitForPodConditions(expectedTotalPods, expectedPending int) (int, int, int, error) {
+func (tc LegacyTestContext) waitForPodConditions(expectedTotalPods, expectedPending int) (int, int, int, error) {
 	var lastTotal, lastRunning, lastPending int
 
 	err := PollForCondition(tc, func() (bool, error) {
@@ -413,7 +413,7 @@ func (tc TestContext) waitForPodConditions(expectedTotalPods, expectedPending in
 // pcsgInstanceName is the full PCSG instance name (e.g., "workload1-0-sg-x")
 // This scales only the specified PCSG instance, not all instances across PCS replicas.
 // Use this for tests that need asymmetric PCSG configurations across PCS replicas.
-func (tc TestContext) scalePCSGInstanceAndWait(pcsgInstanceName string, replicas int32, expectedTotalPods, expectedPending int) {
+func (tc LegacyTestContext) scalePCSGInstanceAndWait(pcsgInstanceName string, replicas int32, expectedTotalPods, expectedPending int) {
 	tc.T.Helper()
 
 	if err := tc.scalePodCliqueScalingGroup(pcsgInstanceName, int(replicas)); err != nil {
@@ -435,7 +435,7 @@ func (tc TestContext) scalePCSGInstanceAndWait(pcsgInstanceName string, replicas
 // This function scales PCSG instances directly (e.g., "workload1-0-sg-x", "workload1-1-sg-x") rather than
 // modifying the PCS template. This is necessary because the PCS controller only sets PCSG replicas during
 // initial creation to support HPA scaling - post-creation scaling must be done directly on the PCSG resource.
-func ScalePCSGAcrossAllReplicasAndWait(tc TestContext, pcsName, pcsgName string, pcsReplicas, pcsgReplicas int32, expectedTotalPods, expectedPending int) {
+func (tc LegacyTestContext) scalePCSGAcrossAllReplicasAndWait(pcsName, pcsgName string, pcsReplicas, pcsgReplicas int32, expectedTotalPods, expectedPending int) {
 	tc.T.Helper()
 
 	// Scale each PCSG instance across all PCS replicas
@@ -454,7 +454,7 @@ func ScalePCSGAcrossAllReplicasAndWait(tc TestContext, pcsName, pcsgName string,
 }
 
 // scalePCSAndWait scales a PCS and waits for the expected pod conditions to be reached.
-func ScalePCSAndWait(tc TestContext, pcsName string, replicas int32, expectedTotalPods, expectedPending int) {
+func (tc LegacyTestContext) scalePCSAndWait(pcsName string, replicas int32, expectedTotalPods, expectedPending int) {
 	tc.T.Helper()
 
 	if err := tc.scalePodCliqueSet(pcsName, int(replicas)); err != nil {
@@ -470,7 +470,7 @@ func ScalePCSAndWait(tc TestContext, pcsName string, replicas int32, expectedTot
 
 // cordonNodes cordons multiple nodes.
 // This helper reduces repetition of the cordon loop pattern found throughout tests.
-func CordonNodes(tc TestContext, nodes []string) {
+func (tc LegacyTestContext) cordonNodes(nodes []string) {
 	tc.T.Helper()
 	for _, nodeName := range nodes {
 		if err := tc.cordonNode(nodeName); err != nil {
@@ -481,7 +481,7 @@ func CordonNodes(tc TestContext, nodes []string) {
 
 // uncordonNodes uncordons multiple nodes.
 // This helper reduces repetition of the uncordon loop pattern found throughout tests.
-func UncordonNodes(tc TestContext, nodes []string) {
+func (tc LegacyTestContext) uncordonNodes(nodes []string) {
 	tc.T.Helper()
 	for _, nodeName := range nodes {
 		if err := tc.uncordonNode(nodeName); err != nil {
@@ -492,7 +492,7 @@ func UncordonNodes(tc TestContext, nodes []string) {
 
 // waitForPodPhases waits for pods to reach specific running and pending counts.
 // This helper reduces repetition of the polling pattern for checking pod phases.
-func (tc TestContext) waitForPodPhases(expectedRunning, expectedPending int) error {
+func (tc LegacyTestContext) waitForPodPhases(expectedRunning, expectedPending int) error {
 	tc.T.Helper()
 	return PollForCondition(tc, func() (bool, error) {
 		pods, err := ListPods(tc)
@@ -507,7 +507,7 @@ func (tc TestContext) waitForPodPhases(expectedRunning, expectedPending int) err
 
 // waitForReadyPods waits for a specific number of pods to be ready (Running + Ready condition).
 // This helper reduces repetition of the polling pattern for checking pod ready state.
-func WaitForReadyPods(tc TestContext, expectedReady int) error {
+func (tc LegacyTestContext) waitForReadyPods(expectedReady int) error {
 	tc.T.Helper()
 	return PollForCondition(tc, func() (bool, error) {
 		pods, err := ListPods(tc)
@@ -522,7 +522,7 @@ func WaitForReadyPods(tc TestContext, expectedReady int) error {
 
 // setupAndCordonNodes retrieves worker nodes, validates the count, and cordons the specified number.
 // Returns the nodes that were cordoned.
-func (tc TestContext) setupAndCordonNodes(numToCordon int) []string {
+func (tc LegacyTestContext) setupAndCordonNodes(numToCordon int) []string {
 	tc.T.Helper()
 
 	workerNodes, err := GetWorkerNodes(tc)
@@ -556,7 +556,7 @@ func (w WorkloadConfig) GetLabelSelector() string {
 
 // DeployAndVerifyWorkload applies a workload YAML and waits for the expected pod count.
 // Uses tc.Workload for configuration. Returns the pod list after successful deployment.
-func DeployAndVerifyWorkload(tc TestContext) (*v1.PodList, error) {
+func (tc LegacyTestContext) deployAndVerifyWorkload() (*v1.PodList, error) {
 	tc.T.Helper()
 
 	if tc.Workload == nil {
@@ -578,7 +578,7 @@ func DeployAndVerifyWorkload(tc TestContext) (*v1.PodList, error) {
 
 // GetLabelSelector returns the label selector for the current workload.
 // This is a convenience method to avoid repeatedly calling tc.Workload.GetLabelSelector().
-func (tc TestContext) GetLabelSelector() string {
+func (tc LegacyTestContext) getLabelSelector() string {
 	if tc.Workload == nil {
 		return ""
 	}
@@ -587,7 +587,7 @@ func (tc TestContext) GetLabelSelector() string {
 
 // verifyAllPodsArePendingWithSleep verifies all pods are pending after a fixed delay.
 // The sleep is a workaround for https://github.com/NVIDIA/grove/issues/226
-func (tc TestContext) verifyAllPodsArePendingWithSleep() {
+func (tc LegacyTestContext) verifyAllPodsArePendingWithSleep() {
 	tc.T.Helper()
 	// Need to use a sleep here unfortunately, see: https://github.com/NVIDIA/grove/issues/226
 	time.Sleep(30 * time.Second)
@@ -598,7 +598,7 @@ func (tc TestContext) verifyAllPodsArePendingWithSleep() {
 
 // uncordonNodesAndWaitForPods uncordons the specified nodes and waits for pods to be ready.
 // This helper combines the common pattern of uncordoning nodes followed by waiting for pods.
-func (tc TestContext) uncordonNodesAndWaitForPods(nodes []string, expectedPods int) {
+func (tc LegacyTestContext) uncordonNodesAndWaitForPods(nodes []string, expectedPods int) {
 	tc.T.Helper()
 
 	UncordonNodes(tc, nodes)
@@ -610,7 +610,7 @@ func (tc TestContext) uncordonNodesAndWaitForPods(nodes []string, expectedPods i
 
 // waitForRunningPods waits for a specific number of pods to be in Running phase (not necessarily ready).
 // This is useful for checking min-replicas scheduling where pods need to be running but may not be fully ready yet.
-func WaitForRunningPods(tc TestContext, expectedRunning int) error {
+func (tc LegacyTestContext) waitForRunningPods(expectedRunning int) error {
 	tc.T.Helper()
 	return PollForCondition(tc, func() (bool, error) {
 		pods, err := ListPods(tc)
@@ -626,7 +626,7 @@ func WaitForRunningPods(tc TestContext, expectedRunning int) error {
 // scalePCS scales a PCS and returns a channel that receives an error when the expected pod count is reached.
 // The operation runs asynchronously - receive from the returned channel to block until complete.
 // If delayMs > 0, the operation will sleep for that duration before starting.
-func ScalePCS(tc TestContext, pcsName string, replicas int32, expectedTotalPods, expectedPending, delayMs int) <-chan error {
+func (tc LegacyTestContext) scalePCS(pcsName string, replicas int32, expectedTotalPods, expectedPending, delayMs int) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
 		startTime := time.Now()
@@ -658,7 +658,7 @@ func ScalePCS(tc TestContext, pcsName string, replicas int32, expectedTotalPods,
 // ScalePCSGAcrossAllReplicas scales a PCSG across all PCS replicas and returns a channel.
 // The operation runs asynchronously - receive from the returned channel to block until complete.
 // If delayMs > 0, the operation will sleep for that duration before starting.
-func ScalePCSGAcrossAllReplicas(tc TestContext, pcsName, pcsgName string, pcsReplicas, pcsgReplicas int32, expectedTotalPods, expectedPending, delayMs int) <-chan error {
+func (tc LegacyTestContext) scalePCSGAcrossAllReplicas(pcsName, pcsgName string, pcsReplicas, pcsgReplicas int32, expectedTotalPods, expectedPending, delayMs int) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
 		startTime := time.Now()

@@ -34,7 +34,7 @@ import (
 )
 
 // DeployWorkloadAndGetPods deploys workload, waits for pods to be ready, and returns the pod list
-func (ts *TestSuite) DeployWorkloadAndGetPods(expectedPods int) ([]v1.Pod, error) {
+func (ts *TestContext) DeployWorkloadAndGetPods(expectedPods int) ([]v1.Pod, error) {
 	if _, err := ts.DeployAndVerifyWorkload(); err != nil {
 		return nil, fmt.Errorf("failed to deploy workload: %w", err)
 	}
@@ -54,7 +54,7 @@ func (ts *TestSuite) DeployWorkloadAndGetPods(expectedPods int) ([]v1.Pod, error
 }
 
 // GetPodGroupOrFail retrieves a PodGroup for the specified PCS replica or fails the test.
-func GetPodGroupOrFail(t *testing.T, ts *TestSuite, pcsReplica int) *kaischedulingv2alpha2.PodGroup {
+func GetPodGroupOrFail(t *testing.T, ts *TestContext, pcsReplica int) *kaischedulingv2alpha2.PodGroup {
 	podGroup, err := ts.PodGroups.GetPodGroupForBasePodGangReplica(
 		ts.Ctx, ts.Namespace, ts.Workload.Name,
 		pcsReplica, ts.Timeout, ts.Interval,
@@ -73,7 +73,7 @@ func GetPodGroupOrFail(t *testing.T, ts *TestSuite, pcsReplica int) *kaischeduli
 func Test_TAS1_TopologyInfrastructure(t *testing.T) {
 	ctx := context.Background()
 
-	ts, cleanup := prepareTestSuite(ctx, t, 0)
+	ts, cleanup := prepareTest(ctx, t, 0)
 	defer cleanup()
 
 	Logger.Info("1. Verify ClusterTopology CR exists with correct 4-level hierarchy")
@@ -145,7 +145,7 @@ func Test_TAS2_MultipleCliquesWithDifferentConstraints(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 7 // worker-rack: 3 pods, worker-block: 4 pods
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-indep-clq",
 			YAMLPath:     "../yaml/tas-indep-clq.yaml",
@@ -201,7 +201,7 @@ func Test_TAS3_PCSOnlyConstraint(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4 // 2 PCSG workers + 2 router standalone
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-sl-pcs-only",
 			YAMLPath:     "../yaml/tas-sl-pcs-only.yaml",
@@ -252,7 +252,7 @@ func Test_TAS4_PCSGOnlyConstraint(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4 // 2 PCSG workers + 2 router standalone
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-sl-pcsg-only",
 			YAMLPath:     "../yaml/tas-sl-pcsg-only.yaml",
@@ -304,7 +304,7 @@ func Test_TAS5_HostLevelConstraint(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 2
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-host-level",
 			YAMLPath:     "../yaml/tas-host-level.yaml",
@@ -363,7 +363,7 @@ func Test_TAS6_StandalonePCLQOnlyPCSZoneConstraint(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-standalone-pclq",
 			YAMLPath:     "../yaml/tas-standalone-pclq-only-pcs-zone.yaml",
@@ -408,7 +408,7 @@ func Test_TAS7_NoTopologyConstraint(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4 // 2 PCSG replicas × 2 pods each
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-no-constraint",
 			YAMLPath:     "../yaml/tas-no-constraint.yaml",
@@ -458,7 +458,7 @@ func Test_TAS8_FullHierarchyWithCascadingConstraints(t *testing.T) {
 
 	logger.Info("1. Initialize an 8-node Grove cluster for topology testing")
 	expectedPods := 8 // 2 PCSG replicas × (prefill: 2 pods + decode: 2 pods)
-	ts, cleanup := prepareTestSuite(ctx, t, 8,
+	ts, cleanup := prepareTest(ctx, t, 8,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-hierarchy",
 			YAMLPath:     "../yaml/tas-hierarchy.yaml",
@@ -532,7 +532,7 @@ func Test_TAS9_PCSPlusPCLQConstraint(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 2
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-pcs-pclq",
 			YAMLPath:     "../yaml/tas-pcs-pclq.yaml",
@@ -579,7 +579,7 @@ func Test_TAS10_PCSGScalingWithTopologyConstraints(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 6 // 3 PCSG replicas × 2 pods each
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-pcsg-scale",
 			YAMLPath:     "../yaml/tas-pcsg-scale.yaml",
@@ -654,7 +654,7 @@ func Test_TAS11_PCSGPlusPCLQNoParentConstraint(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4 // 2 PCSG replicas × 2 pods each
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-pcsg-pclq",
 			YAMLPath:     "../yaml/tas-pcsg-pclq.yaml",
@@ -710,7 +710,7 @@ func Test_TAS12_LargeScalingRatio(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 20 // Base PodGang: 3 PCSG replicas × 2 pods (6) + Scaled: 7 PCSG replicas × 2 pods (14)
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-large-scale",
 			YAMLPath:     "../yaml/tas-large-scale.yaml",
@@ -801,7 +801,7 @@ func Test_TAS13_InsufficientNodesForConstraint(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 10
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-insuffic",
 			YAMLPath:     "../yaml/tas-insuffic.yaml",
@@ -858,7 +858,7 @@ func Test_TAS14_MultiReplicaWithRackConstraint(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-multirep",
 			YAMLPath:     "../yaml/tas-multirep.yaml",
@@ -913,7 +913,7 @@ func Test_TAS15_DisaggregatedInferenceMultiplePCSGs(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 10 // decoder (2×2) + prefill (2×2) + router (2)
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-pcs-multi-pcsg",
 			YAMLPath:     "../yaml/tas-pcs-multi-pcsg.yaml",
@@ -1022,7 +1022,7 @@ func Test_TAS16_MultiReplicaPCSWithThreeLevelHierarchy(t *testing.T) {
 
 	logger.Info("1. Initialize a 28-node Grove cluster for multi-replica PCS testing")
 	expectedPods := 20 // PCS replica 0: 10 pods + PCS replica 1: 10 pods
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "tas-pcs-multi-pcsg",
 			YAMLPath:     "../yaml/tas-pcs-multi-pcsg-multi-replica.yaml",

@@ -33,10 +33,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// TestSuite is the primary test helper struct that composes domain-specific managers.
-// It replaces TestContext with a cleaner, struct-based architecture where clients
-// are created once and shared across all managers.
-type TestSuite struct {
+// TestContext is the primary per-test helper struct that composes domain-specific managers.
+// Clients are created once and shared across all managers.
+type TestContext struct {
 	T   *testing.T
 	Ctx context.Context
 
@@ -61,32 +60,32 @@ type TestSuite struct {
 	NodeNames []string // Reserved nodes for this suite (future: from NodePool)
 }
 
-// SuiteOption configures a TestSuite.
-type SuiteOption func(*TestSuite)
+// TestOption configures a TestContext.
+type TestOption func(*TestContext)
 
-// WithNamespace sets the namespace for the test suite.
-func WithNamespace(ns string) SuiteOption {
-	return func(ts *TestSuite) { ts.Namespace = ns }
+// WithNamespace sets the namespace for the test context.
+func WithNamespace(ns string) TestOption {
+	return func(ts *TestContext) { ts.Namespace = ns }
 }
 
 // WithTimeout sets the default poll timeout.
-func WithTimeout(d time.Duration) SuiteOption {
-	return func(ts *TestSuite) { ts.Timeout = d }
+func WithTimeout(d time.Duration) TestOption {
+	return func(ts *TestContext) { ts.Timeout = d }
 }
 
 // WithInterval sets the default poll interval.
-func WithInterval(d time.Duration) SuiteOption {
-	return func(ts *TestSuite) { ts.Interval = d }
+func WithInterval(d time.Duration) TestOption {
+	return func(ts *TestContext) { ts.Interval = d }
 }
 
 // WithWorkload sets the workload configuration.
-func WithWorkload(wc *WorkloadConfig) SuiteOption {
-	return func(ts *TestSuite) { ts.Workload = wc }
+func WithWorkload(wc *WorkloadConfig) TestOption {
+	return func(ts *TestContext) { ts.Workload = wc }
 }
 
-// NewTestSuite creates a TestSuite from shared clients with optional configuration.
-func NewTestSuite(t *testing.T, ctx context.Context, clients *k8s.Clients, opts ...SuiteOption) *TestSuite {
-	ts := &TestSuite{
+// NewTestContext creates a TestContext from shared clients with optional configuration.
+func NewTestContext(t *testing.T, ctx context.Context, clients *k8s.Clients, opts ...TestOption) *TestContext {
+	ts := &TestContext{
 		T:         t,
 		Ctx:       ctx,
 		Clients:   clients,
@@ -119,8 +118,8 @@ func NewTestSuite(t *testing.T, ctx context.Context, clients *k8s.Clients, opts 
 	return ts
 }
 
-// prepareTestSuite prepares the shared cluster and returns a TestSuite with cleanup function.
-func prepareTestSuite(ctx context.Context, t *testing.T, requiredWorkerNodes int, opts ...SuiteOption) (*TestSuite, func()) {
+// prepareTest prepares the shared cluster and returns a TestContext with cleanup function.
+func prepareTest(ctx context.Context, t *testing.T, requiredWorkerNodes int, opts ...TestOption) (*TestContext, func()) {
 	t.Helper()
 
 	sharedCluster := setup.SharedCluster(logger)
@@ -129,7 +128,7 @@ func prepareTestSuite(ctx context.Context, t *testing.T, requiredWorkerNodes int
 	}
 
 	clients := sharedCluster.GetAllClients()
-	ts := NewTestSuite(t, ctx, clients, opts...)
+	ts := NewTestContext(t, ctx, clients, opts...)
 
 	cleanup := func() {
 		if t.Failed() {
@@ -152,7 +151,7 @@ func prepareTestSuite(ctx context.Context, t *testing.T, requiredWorkerNodes int
 // --- Convenience methods that delegate to managers with suite-scoped defaults ---
 
 // getLabelSelector returns the label selector for the current workload.
-func (ts *TestSuite) getLabelSelector() string {
+func (ts *TestContext) getLabelSelector() string {
 	if ts.Workload == nil {
 		return ""
 	}
@@ -160,32 +159,32 @@ func (ts *TestSuite) getLabelSelector() string {
 }
 
 // PollForCondition wraps k8s.PollForCondition with suite defaults.
-func (ts *TestSuite) PollForCondition(condition func() (bool, error)) error {
+func (ts *TestContext) PollForCondition(condition func() (bool, error)) error {
 	return k8s.PollForCondition(ts.Ctx, ts.Timeout, ts.Interval, condition)
 }
 
 // ListPods lists pods matching the current workload's label selector.
-func (ts *TestSuite) ListPods() (*v1.PodList, error) {
+func (ts *TestContext) ListPods() (*v1.PodList, error) {
 	return ts.Pods.List(ts.Ctx, ts.Namespace, ts.getLabelSelector())
 }
 
 // WaitForPods waits for the expected pod count to be ready.
-func (ts *TestSuite) WaitForPods(expectedCount int) error {
+func (ts *TestContext) WaitForPods(expectedCount int) error {
 	return ts.Pods.WaitForReady(ts.Ctx, []string{ts.Namespace}, ts.getLabelSelector(), expectedCount, ts.Timeout, ts.Interval)
 }
 
 // WaitForPodCount waits for a specific number of pods and returns them.
-func (ts *TestSuite) WaitForPodCount(expectedCount int) (*v1.PodList, error) {
+func (ts *TestContext) WaitForPodCount(expectedCount int) (*v1.PodList, error) {
 	return ts.Pods.WaitForCount(ts.Ctx, ts.Namespace, ts.getLabelSelector(), expectedCount, ts.Timeout, ts.Interval)
 }
 
 // WaitForPodCountAndPhases waits for pods to reach specific total count and phase counts.
-func (ts *TestSuite) WaitForPodCountAndPhases(expectedTotal, expectedRunning, expectedPending int) error {
+func (ts *TestContext) WaitForPodCountAndPhases(expectedTotal, expectedRunning, expectedPending int) error {
 	return ts.Pods.WaitForCountAndPhases(ts.Ctx, ts.Namespace, ts.getLabelSelector(), expectedTotal, expectedRunning, expectedPending, ts.Timeout, ts.Interval)
 }
 
 // WaitForPodPhases waits for pods to reach specific running and pending counts.
-func (ts *TestSuite) WaitForPodPhases(expectedRunning, expectedPending int) error {
+func (ts *TestContext) WaitForPodPhases(expectedRunning, expectedPending int) error {
 	return ts.PollForCondition(func() (bool, error) {
 		pods, err := ts.ListPods()
 		if err != nil {
@@ -197,7 +196,7 @@ func (ts *TestSuite) WaitForPodPhases(expectedRunning, expectedPending int) erro
 }
 
 // WaitForReadyPods waits for a specific number of pods to be ready.
-func (ts *TestSuite) WaitForReadyPods(expectedReady int) error {
+func (ts *TestContext) WaitForReadyPods(expectedReady int) error {
 	ts.T.Helper()
 	return ts.PollForCondition(func() (bool, error) {
 		pods, err := ts.ListPods()
@@ -209,7 +208,7 @@ func (ts *TestSuite) WaitForReadyPods(expectedReady int) error {
 }
 
 // WaitForRunningPods waits for a specific number of pods to be in Running phase.
-func (ts *TestSuite) WaitForRunningPods(expectedRunning int) error {
+func (ts *TestContext) WaitForRunningPods(expectedRunning int) error {
 	ts.T.Helper()
 	return ts.PollForCondition(func() (bool, error) {
 		pods, err := ts.ListPods()
@@ -222,17 +221,17 @@ func (ts *TestSuite) WaitForRunningPods(expectedRunning int) error {
 }
 
 // CordonNode marks a node as unschedulable.
-func (ts *TestSuite) CordonNode(nodeName string) error {
+func (ts *TestContext) CordonNode(nodeName string) error {
 	return ts.Nodes.Cordon(ts.Ctx, nodeName)
 }
 
 // UncordonNode marks a node as schedulable.
-func (ts *TestSuite) UncordonNode(nodeName string) error {
+func (ts *TestContext) UncordonNode(nodeName string) error {
 	return ts.Nodes.Uncordon(ts.Ctx, nodeName)
 }
 
 // CordonNodes cordons multiple nodes.
-func (ts *TestSuite) CordonNodes(nodes []string) {
+func (ts *TestContext) CordonNodes(nodes []string) {
 	ts.T.Helper()
 	for _, nodeName := range nodes {
 		if err := ts.CordonNode(nodeName); err != nil {
@@ -242,7 +241,7 @@ func (ts *TestSuite) CordonNodes(nodes []string) {
 }
 
 // UncordonNodes uncordons multiple nodes.
-func (ts *TestSuite) UncordonNodes(nodes []string) {
+func (ts *TestContext) UncordonNodes(nodes []string) {
 	ts.T.Helper()
 	for _, nodeName := range nodes {
 		if err := ts.UncordonNode(nodeName); err != nil {
@@ -252,27 +251,27 @@ func (ts *TestSuite) UncordonNodes(nodes []string) {
 }
 
 // GetWorkerNodes retrieves the names of all worker nodes in the cluster.
-func (ts *TestSuite) GetWorkerNodes() ([]string, error) {
+func (ts *TestContext) GetWorkerNodes() ([]string, error) {
 	return ts.Nodes.GetWorkerNodes(ts.Ctx)
 }
 
 // ScalePCS scales a PodCliqueSet to the specified replica count.
-func (ts *TestSuite) ScalePCS(name string, replicas int) error {
+func (ts *TestContext) ScalePCS(name string, replicas int) error {
 	return ts.Workloads.ScalePCS(ts.Ctx, ts.Namespace, name, replicas)
 }
 
 // ScalePCSG scales a PodCliqueScalingGroup to the specified replica count.
-func (ts *TestSuite) ScalePCSG(name string, replicas int) error {
+func (ts *TestContext) ScalePCSG(name string, replicas int) error {
 	return ts.Workloads.ScalePCSG(ts.Ctx, ts.Namespace, name, replicas, ts.Timeout, ts.Interval)
 }
 
 // ApplyYAMLFile applies a YAML file to the cluster.
-func (ts *TestSuite) ApplyYAMLFile(yamlPath string) ([]k8s.AppliedResource, error) {
+func (ts *TestContext) ApplyYAMLFile(yamlPath string) ([]k8s.AppliedResource, error) {
 	return ts.Resources.ApplyYAMLFile(ts.Ctx, yamlPath, ts.Namespace)
 }
 
 // DeployAndVerifyWorkload applies a workload YAML and waits for the expected pod count.
-func (ts *TestSuite) DeployAndVerifyWorkload() (*v1.PodList, error) {
+func (ts *TestContext) DeployAndVerifyWorkload() (*v1.PodList, error) {
 	ts.T.Helper()
 	if ts.Workload == nil {
 		return nil, fmt.Errorf("ts.Workload is nil, must be set before calling DeployAndVerifyWorkload")
@@ -292,7 +291,7 @@ func (ts *TestSuite) DeployAndVerifyWorkload() (*v1.PodList, error) {
 }
 
 // VerifyAllPodsArePending verifies that all pods matching the label selector are pending.
-func (ts *TestSuite) VerifyAllPodsArePending() error {
+func (ts *TestContext) VerifyAllPodsArePending() error {
 	return ts.PollForCondition(func() (bool, error) {
 		pods, err := ts.ListPods()
 		if err != nil {
@@ -308,7 +307,7 @@ func (ts *TestSuite) VerifyAllPodsArePending() error {
 }
 
 // VerifyPodsArePendingWithUnschedulableEvents verifies that pods are pending with Unschedulable events.
-func (ts *TestSuite) VerifyPodsArePendingWithUnschedulableEvents(allPodsMustBePending bool, expectedPendingCount int) error {
+func (ts *TestContext) VerifyPodsArePendingWithUnschedulableEvents(allPodsMustBePending bool, expectedPendingCount int) error {
 	if allPodsMustBePending {
 		if err := ts.VerifyAllPodsArePending(); err != nil {
 			return fmt.Errorf("not all pods are pending: %w", err)
@@ -361,7 +360,7 @@ func (ts *TestSuite) VerifyPodsArePendingWithUnschedulableEvents(allPodsMustBePe
 }
 
 // ListPodsAndAssertDistinctNodes lists pods and asserts they are on distinct nodes.
-func (ts *TestSuite) ListPodsAndAssertDistinctNodes() {
+func (ts *TestContext) ListPodsAndAssertDistinctNodes() {
 	ts.T.Helper()
 	pods, err := ts.ListPods()
 	if err != nil {
@@ -371,7 +370,7 @@ func (ts *TestSuite) ListPodsAndAssertDistinctNodes() {
 }
 
 // SetupAndCordonNodes retrieves worker nodes and cordons the specified number.
-func (ts *TestSuite) SetupAndCordonNodes(numToCordon int) []string {
+func (ts *TestContext) SetupAndCordonNodes(numToCordon int) []string {
 	ts.T.Helper()
 
 	workerNodes, err := ts.GetWorkerNodes()
@@ -390,7 +389,7 @@ func (ts *TestSuite) SetupAndCordonNodes(numToCordon int) []string {
 }
 
 // UncordonNodesAndWaitForPods uncordons nodes and waits for pods to be ready.
-func (ts *TestSuite) UncordonNodesAndWaitForPods(nodes []string, expectedPods int) {
+func (ts *TestContext) UncordonNodesAndWaitForPods(nodes []string, expectedPods int) {
 	ts.T.Helper()
 	ts.UncordonNodes(nodes)
 	if err := ts.WaitForPods(expectedPods); err != nil {
@@ -399,7 +398,7 @@ func (ts *TestSuite) UncordonNodesAndWaitForPods(nodes []string, expectedPods in
 }
 
 // VerifyAllPodsArePendingWithSleep verifies all pods are pending after a fixed delay.
-func (ts *TestSuite) VerifyAllPodsArePendingWithSleep() {
+func (ts *TestContext) VerifyAllPodsArePendingWithSleep() {
 	ts.T.Helper()
 	time.Sleep(30 * time.Second)
 	if err := ts.VerifyAllPodsArePending(); err != nil {
@@ -408,7 +407,7 @@ func (ts *TestSuite) VerifyAllPodsArePendingWithSleep() {
 }
 
 // WaitForPodConditions polls until the expected pod state is reached.
-func (ts *TestSuite) WaitForPodConditions(expectedTotalPods, expectedPending int) (int, int, int, error) {
+func (ts *TestContext) WaitForPodConditions(expectedTotalPods, expectedPending int) (int, int, int, error) {
 	var lastTotal, lastRunning, lastPending int
 
 	err := ts.PollForCondition(func() (bool, error) {
@@ -427,7 +426,7 @@ func (ts *TestSuite) WaitForPodConditions(expectedTotalPods, expectedPending int
 }
 
 // ScalePCSAndWait scales a PCS and waits for the expected pod conditions.
-func (ts *TestSuite) ScalePCSAndWait(pcsName string, replicas int32, expectedTotalPods, expectedPending int) {
+func (ts *TestContext) ScalePCSAndWait(pcsName string, replicas int32, expectedTotalPods, expectedPending int) {
 	ts.T.Helper()
 
 	if err := ts.ScalePCS(pcsName, int(replicas)); err != nil {
@@ -442,7 +441,7 @@ func (ts *TestSuite) ScalePCSAndWait(pcsName string, replicas int32, expectedTot
 }
 
 // ScalePCSGInstanceAndWait scales a specific PCSG instance and waits for expected pod conditions.
-func (ts *TestSuite) ScalePCSGInstanceAndWait(pcsgInstanceName string, replicas int32, expectedTotalPods, expectedPending int) {
+func (ts *TestContext) ScalePCSGInstanceAndWait(pcsgInstanceName string, replicas int32, expectedTotalPods, expectedPending int) {
 	ts.T.Helper()
 
 	if err := ts.ScalePCSG(pcsgInstanceName, int(replicas)); err != nil {
@@ -457,7 +456,7 @@ func (ts *TestSuite) ScalePCSGInstanceAndWait(pcsgInstanceName string, replicas 
 }
 
 // ScalePCSGAcrossAllReplicasAndWait scales a PCSG across all PCS replicas and waits.
-func (ts *TestSuite) ScalePCSGAcrossAllReplicasAndWait(pcsName, pcsgName string, pcsReplicas, pcsgReplicas int32, expectedTotalPods, expectedPending int) {
+func (ts *TestContext) ScalePCSGAcrossAllReplicasAndWait(pcsName, pcsgName string, pcsReplicas, pcsgReplicas int32, expectedTotalPods, expectedPending int) {
 	ts.T.Helper()
 
 	for replicaIndex := int32(0); replicaIndex < pcsReplicas; replicaIndex++ {
@@ -475,7 +474,7 @@ func (ts *TestSuite) ScalePCSGAcrossAllReplicasAndWait(pcsName, pcsgName string,
 }
 
 // ScalePCSAsync scales a PCS asynchronously and returns an error channel.
-func (ts *TestSuite) ScalePCSAsync(pcsName string, replicas int32, expectedTotalPods, expectedPending, delayMs int) <-chan error {
+func (ts *TestContext) ScalePCSAsync(pcsName string, replicas int32, expectedTotalPods, expectedPending, delayMs int) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
 		startTime := time.Now()
@@ -505,7 +504,7 @@ func (ts *TestSuite) ScalePCSAsync(pcsName string, replicas int32, expectedTotal
 }
 
 // ScalePCSGAcrossAllReplicasAsync scales a PCSG across all PCS replicas asynchronously.
-func (ts *TestSuite) ScalePCSGAcrossAllReplicasAsync(pcsName, pcsgName string, pcsReplicas, pcsgReplicas int32, expectedTotalPods, expectedPending, delayMs int) <-chan error {
+func (ts *TestContext) ScalePCSGAcrossAllReplicasAsync(pcsName, pcsgName string, pcsReplicas, pcsgReplicas int32, expectedTotalPods, expectedPending, delayMs int) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
 		startTime := time.Now()

@@ -35,7 +35,7 @@ func Test_GS1_GangSchedulingWithFullReplicas(t *testing.T) {
 	Logger.Info("1. Initialize a 10-node Grove cluster, then cordon 1 node")
 	// Setup test cluster with 10 worker nodes
 	expectedPods := 10 // pc-a: 2 replicas, pc-b: 1*2 (scaling group), pc-c: 3*2 (scaling group) = 2+2+6=10
-	ts, cleanup := prepareTestSuite(ctx, t, 10,
+	ts, cleanup := prepareTest(ctx, t, 10,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload1",
 			YAMLPath:     "../yaml/workload1.yaml",
@@ -86,7 +86,7 @@ func Test_GS2_GangSchedulingWithScalingFullReplicas(t *testing.T) {
 	// Setup cluster (shared or individual based on test run mode)
 	Logger.Info("1. Initialize a 14-node Grove cluster, then cordon 5 nodes")
 
-	ts, cleanup := prepareTestSuite(ctx, t, 14,
+	ts, cleanup := prepareTest(ctx, t, 14,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload1",
 			YAMLPath:     "../yaml/workload1.yaml",
@@ -153,7 +153,7 @@ func Test_GS3_GangSchedulingWithPCSScalingFullReplicas(t *testing.T) {
 	ctx := context.Background()
 
 	logger.Info("1. Initialize a 20-node Grove cluster, then cordon 11 nodes")
-	ts, cleanup := prepareTestSuite(ctx, t, 20,
+	ts, cleanup := prepareTest(ctx, t, 20,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload1",
 			YAMLPath:     "../yaml/workload1.yaml",
@@ -219,7 +219,7 @@ func Test_GS4_GangSchedulingWithPCSAndPCSGScalingFullReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster, then cordon 19 nodes")
 	// Setup cluster (shared or individual based on test run mode)
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload1",
 			YAMLPath:     "../yaml/workload1.yaml",
@@ -285,7 +285,7 @@ func Test_GS5_GangSchedulingWithMinReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 10-node Grove cluster, then cordon 8 nodes")
 	// Setup cluster (shared or individual based on test run mode)
-	ts, cleanup := prepareTestSuite(ctx, t, 10,
+	ts, cleanup := prepareTest(ctx, t, 10,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload2",
 			YAMLPath:     "../yaml/workload2.yaml",
@@ -353,7 +353,7 @@ func Test_GS6_GangSchedulingWithPCSGScalingMinReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 14-node Grove cluster, then cordon 12 nodes")
 	// Setup cluster (shared or individual based on test run mode)
-	ts, cleanup := prepareTestSuite(ctx, t, 14,
+	ts, cleanup := prepareTest(ctx, t, 14,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload2",
 			YAMLPath:     "../yaml/workload2.yaml",
@@ -465,7 +465,7 @@ func Test_GS7_GangSchedulingWithPCSGScalingMinReplicasAdvanced1(t *testing.T) {
 
 	Logger.Info("1. Initialize a 14-node Grove cluster, then cordon 12 nodes")
 	// Setup cluster (shared or individual based on test run mode)
-	ts, cleanup := prepareTestSuite(ctx, t, 14,
+	ts, cleanup := prepareTest(ctx, t, 14,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload2",
 			YAMLPath:     "../yaml/workload2.yaml",
@@ -586,7 +586,7 @@ func Test_GS8_GangSchedulingWithPCSGScalingMinReplicasAdvanced2(t *testing.T) {
 
 	Logger.Info("1. Initialize a 14-node Grove cluster, then cordon 12 nodes")
 	// Setup cluster (shared or individual based on test run mode)
-	ts, cleanup := prepareTestSuite(ctx, t, 14,
+	ts, cleanup := prepareTest(ctx, t, 14,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload2",
 			YAMLPath:     "../yaml/workload2.yaml",
@@ -681,7 +681,7 @@ func Test_GS9_GangSchedulingWithPCSScalingMinReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 20-node Grove cluster, then cordon 18 nodes")
 	// Setup cluster (shared or individual based on test run mode)
-	ts, cleanup := prepareTestSuite(ctx, t, 20,
+	ts, cleanup := prepareTest(ctx, t, 20,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload2",
 			YAMLPath:     "../yaml/workload2.yaml",
@@ -784,7 +784,7 @@ func Test_GS10_GangSchedulingWithPCSScalingMinReplicasAdvanced(t *testing.T) {
 
 	Logger.Info("1. Initialize a 20-node Grove cluster, then cordon 18 nodes")
 	// Setup cluster (shared or individual based on test run mode)
-	ts, cleanup := prepareTestSuite(ctx, t, 20,
+	ts, cleanup := prepareTest(ctx, t, 20,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload2",
 			YAMLPath:     "../yaml/workload2.yaml",
@@ -888,7 +888,7 @@ func Test_GS11_GangSchedulingWithPCSAndPCSGScalingMinReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster, then cordon 26 nodes")
 	// Setup cluster (shared or individual based on test run mode)
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload2",
 			YAMLPath:     "../yaml/workload2.yaml",
@@ -1030,7 +1030,7 @@ func Test_GS12_GangSchedulingWithComplexPCSGScaling(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster, then cordon 26 nodes")
 	// Setup cluster (shared or individual based on test run mode)
-	ts, cleanup := prepareTestSuite(ctx, t, 28,
+	ts, cleanup := prepareTest(ctx, t, 28,
 		WithWorkload(&WorkloadConfig{
 			Name:         "workload2",
 			YAMLPath:     "../yaml/workload2.yaml",
