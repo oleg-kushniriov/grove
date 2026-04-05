@@ -27,7 +27,8 @@ import (
 	"time"
 
 	grovev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/tests"
+	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -36,39 +37,237 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-// triggerRollingUpdate triggers a rolling update on the specified cliques and returns a channel
-// that receives an error (or nil) when the rolling update finishes.
-// Uses tc.Workload.Name as the PCS name and tc.Timeout for the wait timeout.
-func (tc *TestContext) triggerRollingUpdate(expectedReplicas int32, cliqueNames ...string) <-chan error {
-	errCh := make(chan error, 1)
-	go func() {
-		startTime := time.Now()
+// ============================================================================
+// Common update utilities
+// ============================================================================
 
-		// Trigger synchronously first
-		for _, cliqueName := range cliqueNames {
-			if err := tc.triggerPodCliqueRollingUpdate(cliqueName); err != nil {
-				errCh <- fmt.Errorf("failed to update PodClique %s spec: %w", cliqueName, err)
-				return
-			}
-		}
-		logger.Debugf("[triggerRollingUpdate] Triggered update on %v, waiting for completion...", cliqueNames)
+// captureExistingPodNames returns a map of all current pod names for the workload.
+func captureExistingPodNames(tc *tests.TestContext) (map[string]bool, error) {
+	pods, err := tc.ListPods()
+	if err != nil {
+		return nil, err
+	}
 
-		// Wait for completion
-		err := tc.waitForRollingUpdateComplete(expectedReplicas)
-		elapsed := time.Since(startTime)
-		if err != nil {
-			logger.Debugf("[triggerRollingUpdate] Rolling update FAILED after %v: %v", elapsed, err)
-		} else {
-			logger.Debugf("[triggerRollingUpdate] Rolling update completed in %v", elapsed)
-		}
-		errCh <- err
-	}()
-	return errCh
+	existingPodNames := make(map[string]bool, len(pods.Items))
+	for _, pod := range pods.Items {
+		existingPodNames[pod.Name] = true
+	}
+
+	tests.Logger.Debugf("Captured %d existing pods before spec change", len(existingPodNames))
+	return existingPodNames, nil
 }
 
-// triggerPodCliqueRollingUpdate triggers a rolling update by adding/updating an environment variable in a PodClique.
+// verifyPodHasUpdatedSpec verifies that a pod has the UPDATE_TRIGGER environment variable,
+// indicating it was created with the updated spec.
+func verifyPodHasUpdatedSpec(tc *tests.TestContext, podName string) error {
+	tc.T.Helper()
+
+	pod, err := tc.Clients.Clientset.CoreV1().Pods(tc.Namespace).Get(tc.Ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get pod %s: %w", podName, err)
+	}
+
+	for _, container := range pod.Spec.Containers {
+		for _, env := range container.Env {
+			if env.Name == "UPDATE_TRIGGER" {
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("pod %s does not have the UPDATE_TRIGGER environment variable", podName)
+}
+
+// deletePodAndWaitForTermination deletes a pod and waits until it is fully terminated.
+func deletePodAndWaitForTermination(tc *tests.TestContext, podName string) error {
+	tc.T.Helper()
+
+	if err := tc.Clients.Clientset.CoreV1().Pods(tc.Namespace).Delete(tc.Ctx, podName, metav1.DeleteOptions{}); err != nil {
+		return fmt.Errorf("failed to delete pod %s: %w", podName, err)
+	}
+
+	err := tc.PollForCondition(func() (bool, error) {
+		pods, err := tc.ListPods()
+		if err != nil {
+			return false, err
+		}
+		for _, pod := range pods.Items {
+			if pod.Name == podName {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to wait for the pod %s to be terminated: %w", podName, err)
+	}
+
+	tests.Logger.Debugf("Deleted pod %s, waiting for replacement...", podName)
+	return nil
+}
+
+// getPodsForClique returns the names of all pods belonging to the specified clique.
+func getPodsForClique(tc *tests.TestContext, cliqueName string) ([]string, error) {
+	tc.T.Helper()
+
+	pods, err := tc.ListPods()
+	if err != nil {
+		return nil, err
+	}
+
+	var cliquePods []string
+	for _, pod := range pods.Items {
+		if pod.Labels == nil {
+			continue
+		}
+		if pclq, ok := pod.Labels["grove.io/podclique"]; ok && strings.HasSuffix(pclq, "-"+cliqueName) {
+			cliquePods = append(cliquePods, pod.Name)
+		}
+	}
+
+	return cliquePods, nil
+}
+
+// getFirstPodForClique returns the name of the first pod belonging to the specified clique.
+func getFirstPodForClique(tc *tests.TestContext, cliqueName string) (string, error) {
+	cliquePods, err := getPodsForClique(tc, cliqueName)
+	if err != nil {
+		return "", err
+	}
+	if len(cliquePods) == 0 {
+		return "", fmt.Errorf("no pods found for %s", cliqueName)
+	}
+	return cliquePods[0], nil
+}
+
+// findFirstNewPodName returns the name of the first pod not present in the given set.
+func findFirstNewPodName(tc *tests.TestContext, existingPodNames map[string]bool) (string, error) {
+	pods, err := tc.ListPods()
+	if err != nil {
+		return "", err
+	}
+
+	for _, pod := range pods.Items {
+		if !existingPodNames[pod.Name] {
+			return pod.Name, nil
+		}
+	}
+
+	return "", fmt.Errorf("could not find newly created replacement pod")
+}
+
+// getPodsOnNode returns the names of pods scheduled on the specified node.
+func getPodsOnNode(tc *tests.TestContext, nodeName string) ([]string, error) {
+	tc.T.Helper()
+
+	pods, err := tc.ListPods()
+	if err != nil {
+		return nil, err
+	}
+
+	var podsOnNode []string
+	for _, pod := range pods.Items {
+		if pod.Spec.NodeName == nodeName {
+			podsOnNode = append(podsOnNode, pod.Name)
+		}
+	}
+
+	return podsOnNode, nil
+}
+
+// getNodeForPod returns the node name where the specified pod is scheduled.
+func getNodeForPod(tc *tests.TestContext, podName string) (string, error) {
+	tc.T.Helper()
+
+	pod, err := tc.Clients.Clientset.CoreV1().Pods(tc.Namespace).Get(tc.Ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get pod %s: %w", podName, err)
+	}
+	if pod.Spec.NodeName == "" {
+		return "", fmt.Errorf("pod %s has no node assignment", podName)
+	}
+	return pod.Spec.NodeName, nil
+}
+
+// identifyHealthyNodePods returns the set of pod names that are NOT on the specified node.
+func identifyHealthyNodePods(allPods map[string]bool, podsOnExcludedNode []string) map[string]bool {
+	healthyNodePods := make(map[string]bool)
+	excludedSet := make(map[string]bool, len(podsOnExcludedNode))
+	for _, name := range podsOnExcludedNode {
+		excludedSet[name] = true
+	}
+	for name := range allPods {
+		if !excludedSet[name] {
+			healthyNodePods[name] = true
+		}
+	}
+	return healthyNodePods
+}
+
+// verifyPodNotOnNode asserts that the specified pod is not scheduled on the given node.
+func verifyPodNotOnNode(tc *tests.TestContext, podName string, excludedNodeName string) {
+	tc.T.Helper()
+
+	nodeName, err := getNodeForPod(tc, podName)
+	if err != nil {
+		tc.T.Fatalf("Failed to get node for pod %s: %v", podName, err)
+	}
+	if nodeName == excludedNodeName {
+		tc.T.Fatalf("Pod %s is scheduled on excluded node %s — nodeAffinity exclusion not enforced", podName, excludedNodeName)
+	}
+	tests.Logger.Debugf("Pod %s is on node %s (not on excluded node %s)", podName, nodeName, excludedNodeName)
+}
+
+// verifyPodsStillPresent asserts that all pods in the given set are still present in the cluster.
+func verifyPodsStillPresent(tc *tests.TestContext, expectedPods map[string]bool) {
+	tc.T.Helper()
+
+	pods, err := tc.ListPods()
+	if err != nil {
+		tc.T.Fatalf("Failed to list pods: %v", err)
+	}
+
+	currentPods := make(map[string]bool, len(pods.Items))
+	for _, pod := range pods.Items {
+		currentPods[pod.Name] = true
+	}
+
+	for podName := range expectedPods {
+		if !currentPods[podName] {
+			tc.T.Fatalf("Pod %s was disrupted (deleted/recreated) — update strategy violated", podName)
+		}
+	}
+}
+
+// updatePCSUpdateStrategy changes the update strategy type of the PodCliqueSet.
 // Uses tc.Workload.Name as the PCS name.
-func (tc *TestContext) triggerPodCliqueRollingUpdate(cliqueName string) error {
+func updatePCSUpdateStrategy(tc *tests.TestContext, strategyType grovev1alpha1.UpdateStrategyType) error {
+	tc.T.Helper()
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		pcs, err := utils.GetPodCliqueSet(tc.Ctx, tc.Clients.DynamicClient, tc.Workload.Name, tc.Namespace)
+		if err != nil {
+			return fmt.Errorf("failed to fetch PodCliqueSet: %w", err)
+		}
+
+		if pcs.Spec.UpdateStrategy == nil {
+			pcs.Spec.UpdateStrategy = &grovev1alpha1.PodCliqueSetUpdateStrategy{}
+		}
+		pcs.Spec.UpdateStrategy.Type = strategyType
+
+		updatedUnstructured, err := tests.ConvertTypedToUnstructured(&pcs)
+		if err != nil {
+			return fmt.Errorf("failed to convert to unstructured: %w", err)
+		}
+
+		_, err = tc.Clients.DynamicClient.Resource(utils.PodCliqueSetGVR).Namespace(tc.Namespace).Update(tc.Ctx, updatedUnstructured, metav1.UpdateOptions{})
+		return err
+	})
+}
+
+// triggerPodCliqueUpdate triggers an update by adding/updating an environment variable in a PodClique.
+// Uses tc.Workload.Name as the PCS name.
+func triggerPodCliqueUpdate(tc *tests.TestContext, cliqueName string) error {
 	pcsGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquesets"}
 	pcsName := tc.Workload.Name
 
@@ -85,7 +284,7 @@ func (tc *TestContext) triggerPodCliqueRollingUpdate(cliqueName string) error {
 
 		// Convert unstructured to typed PodCliqueSet
 		var pcs grovev1alpha1.PodCliqueSet
-		err = k8s.ConvertUnstructuredToTyped(unstructuredPCS.Object, &pcs)
+		err = utils.ConvertUnstructuredToTyped(unstructuredPCS.Object, &pcs)
 		if err != nil {
 			return fmt.Errorf("failed to convert to PodCliqueSet: %w", err)
 		}
@@ -143,8 +342,8 @@ func (tc *TestContext) triggerPodCliqueRollingUpdate(cliqueName string) error {
 
 // patchPCSWithSIGTERMIgnoringCommand patches all containers in the PCS to use a command that ignores SIGTERM
 // and sets the termination grace period to 5 seconds. This makes pods ignore graceful shutdown but still
-// allows rolling updates to progress in a reasonable time for testing.
-func (tc *TestContext) patchPCSWithSIGTERMIgnoringCommand() error {
+// allows updates to progress in a reasonable time for testing.
+func patchPCSWithSIGTERMIgnoringCommand(tc *tests.TestContext) error {
 	pcsGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquesets"}
 	pcsName := tc.Workload.Name
 
@@ -155,7 +354,7 @@ func (tc *TestContext) patchPCSWithSIGTERMIgnoringCommand() error {
 		}
 
 		var pcs grovev1alpha1.PodCliqueSet
-		err = k8s.ConvertUnstructuredToTyped(unstructuredPCS.Object, &pcs)
+		err = utils.ConvertUnstructuredToTyped(unstructuredPCS.Object, &pcs)
 		if err != nil {
 			return fmt.Errorf("failed to convert to PodCliqueSet: %w", err)
 		}
@@ -184,20 +383,9 @@ func (tc *TestContext) patchPCSWithSIGTERMIgnoringCommand() error {
 	})
 }
 
-// waitForRollingUpdate starts polling for rolling update completion in the background and returns a channel.
-// Use this when you need to trigger an update separately (e.g., when doing something between trigger and wait).
-// For the common case, use triggerRollingUpdate which combines trigger + wait.
-func (tc *TestContext) waitForRollingUpdate(expectedReplicas int32) <-chan error {
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- tc.waitForRollingUpdateComplete(expectedReplicas)
-	}()
-	return errCh
-}
-
 // waitForRollingUpdateComplete waits for rolling update to complete by checking UpdatedReplicas.
 // Uses tc.Workload.Name as the PCS name and tc.Timeout for the timeout (use a modified tc if a different timeout is needed).
-func (tc *TestContext) waitForRollingUpdateComplete(expectedReplicas int32) error {
+func waitForRollingUpdateComplete(tc *tests.TestContext, expectedReplicas int32) error {
 	pcsGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquesets"}
 	pcsName := tc.Workload.Name
 
@@ -210,7 +398,7 @@ func (tc *TestContext) waitForRollingUpdateComplete(expectedReplicas int32) erro
 		}
 
 		var pcs grovev1alpha1.PodCliqueSet
-		err = k8s.ConvertUnstructuredToTyped(unstructuredPCS.Object, &pcs)
+		err = utils.ConvertUnstructuredToTyped(unstructuredPCS.Object, &pcs)
 		if err != nil {
 			return false, err
 		}
@@ -266,13 +454,13 @@ func (tc *TestContext) waitForRollingUpdateComplete(expectedReplicas int32) erro
 //   - Direct patching of PodClique resources (what this function does)
 //
 // See: internal/controller/podcliqueset/components/podclique/podclique.go buildResource()
-func scalePodCliqueInPCS(tc tests.TestContext, cliqueName string, replicas int32) error {
+func scalePodCliqueInPCS(tc *tests.TestContext, cliqueName string, replicas int32) error {
 	pcsGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquesets"}
 	pclqGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliques"}
 	pcsName := tc.Workload.Name
 
 	// Get the PCS to find out how many replicas it has
-	unstructuredPCS, err := tc.DynamicClient.Resource(pcsGVR).Namespace(tc.Namespace).Get(tc.Ctx, pcsName, metav1.GetOptions{})
+	unstructuredPCS, err := tc.Clients.DynamicClient.Resource(pcsGVR).Namespace(tc.Namespace).Get(tc.Ctx, pcsName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get PodCliqueSet: %w", err)
 	}
@@ -311,7 +499,7 @@ func scalePodCliqueInPCS(tc tests.TestContext, cliqueName string, replicas int32
 				return fmt.Errorf("failed to marshal patch: %w", err)
 			}
 
-			_, err = tc.DynamicClient.Resource(pclqGVR).Namespace(tc.Namespace).Patch(
+			_, err = tc.Clients.DynamicClient.Resource(pclqGVR).Namespace(tc.Namespace).Patch(
 				tc.Ctx, pclqName, types.MergePatchType, patchBytes, metav1.PatchOptions{})
 			return err
 		}); err != nil {
@@ -329,7 +517,7 @@ func scalePodCliqueInPCS(tc tests.TestContext, cliqueName string, replicas int32
 // triggerRollingUpdate triggers a rolling update on the specified cliques and returns a channel
 // that receives an error (or nil) when the rolling update finishes.
 // Uses tc.Workload.Name as the PCS name and tc.Timeout for the wait timeout.
-func triggerRollingUpdate(tc tests.TestContext, expectedReplicas int32, cliqueNames ...string) <-chan error {
+func triggerRollingUpdate(tc *tests.TestContext, expectedReplicas int32, cliqueNames ...string) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
 		startTime := time.Now()
@@ -359,7 +547,7 @@ func triggerRollingUpdate(tc tests.TestContext, expectedReplicas int32, cliqueNa
 // waitForRollingUpdate starts polling for rolling update completion in the background and returns a channel.
 // Use this when you need to trigger an update separately (e.g., when doing something between trigger and wait).
 // For the common case, use triggerRollingUpdate which combines trigger + wait.
-func waitForRollingUpdate(tc tests.TestContext, expectedReplicas int32) <-chan error {
+func waitForRollingUpdate(tc *tests.TestContext, expectedReplicas int32) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- waitForRollingUpdateComplete(tc, expectedReplicas)
@@ -369,7 +557,7 @@ func waitForRollingUpdate(tc tests.TestContext, expectedReplicas int32) <-chan e
 
 // waitForOrdinalUpdating waits for a specific ordinal to start being updated during rolling update.
 // Uses tc.Workload.Name as the PCS name and tc.Timeout for the timeout (use a modified tc if a different timeout is needed).
-func (tc *TestContext) waitForOrdinalUpdating(ordinal int32) error {
+func waitForOrdinalUpdating(tc *tests.TestContext, ordinal int32) error {
 	pcsGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquesets"}
 	pcsName := tc.Workload.Name
 
@@ -382,7 +570,7 @@ func (tc *TestContext) waitForOrdinalUpdating(ordinal int32) error {
 		}
 
 		var pcs grovev1alpha1.PodCliqueSet
-		err = k8s.ConvertUnstructuredToTyped(unstructuredPCS.Object, &pcs)
+		err = utils.ConvertUnstructuredToTyped(unstructuredPCS.Object, &pcs)
 		if err != nil {
 			return false, err
 		}
@@ -427,7 +615,7 @@ func (tc *TestContext) waitForOrdinalUpdating(ordinal int32) error {
 //
 // Only the pod name changes (due to GenerateName), while pod.Spec.Hostname represents the pod's
 // logical position in the workload hierarchy and remains constant.
-func (tc *TestContext) getPodIdentifier(pod *corev1.Pod) string {
+func getPodIdentifier(tc *tests.TestContext, pod *corev1.Pod) string {
 	tc.T.Helper()
 
 	// Use hostname as the stable identifier (set by configurePodHostname in pod.go)
@@ -451,7 +639,7 @@ func (tc *TestContext) getPodIdentifier(pod *corev1.Pod) string {
 //
 // To handle this, we track both ADDED and DELETE events and only consider a hostname
 // as "actively deleting" if there's no replacement pod that was added.
-func (tc *TestContext) verifyOnePodDeletedAtATime(events []podEvent) {
+func verifyOnePodDeletedAtATime(tc *tests.TestContext, events []podEvent) {
 	tc.T.Helper()
 
 	// Log all events for debugging
@@ -480,8 +668,8 @@ func (tc *TestContext) verifyOnePodDeletedAtATime(events []podEvent) {
 
 	tests.Logger.Debug("=== Processing events to find concurrent deletions ===")
 	for i, event := range events {
-		podID := tc.getPodIdentifier(event.Pod)
-		podName := event.Pod.Name
+		podID := getPodIdentifier(tc, event.pod)
+		podName := event.pod.Name
 
 		switch event.eventType {
 		case watch.Deleted:
@@ -558,7 +746,7 @@ func (tc *TestContext) verifyOnePodDeletedAtATime(events []podEvent) {
 //
 // IMPORTANT: This function handles the fact that Kubernetes watch events can arrive out of order.
 // See verifyOnePCSGReplicaDeletedAtATime for detailed explanation.
-func (tc *TestContext) verifyOnePodDeletedAtATimePerPodclique(events []podEvent) {
+func verifyOnePodDeletedAtATimePerPodclique(tc *tests.TestContext, events []podEvent) {
 	tc.T.Helper()
 
 	// Track DELETE and ADDED counts separately per podID per PodClique to handle out-of-order events.
@@ -569,16 +757,16 @@ func (tc *TestContext) verifyOnePodDeletedAtATimePerPodclique(events []podEvent)
 
 	for _, event := range events {
 		// All pods should have labels - if nil, that's a bug
-		if event.Pod.Labels == nil {
-			tc.T.Fatalf("Pod %s has no labels, which indicates a bug in pod creation", event.Pod.Name)
+		if event.pod.Labels == nil {
+			tc.T.Fatalf("Pod %s has no labels, which indicates a bug in pod creation", event.pod.Name)
 		}
 
 		podcliqueName, ok := event.pod.Labels["grove.io/podclique"]
 		if !ok {
-			tc.T.Fatalf("Pod %s does not have grove.io/podclique label", event.Pod.Name)
+			tc.T.Fatalf("Pod %s does not have grove.io/podclique label", event.pod.Name)
 		}
 
-		podID := tc.getPodIdentifier(event.Pod)
+		podID := getPodIdentifier(tc, event.pod)
 
 		switch event.eventType {
 		case watch.Deleted:
@@ -654,7 +842,7 @@ func (tc *TestContext) verifyOnePodDeletedAtATimePerPodclique(events []podEvent)
 //
 // To handle this, we track both DELETE and ADDED counts and calculate "actively updating"
 // replicas based on the difference (DELETE > ADDED means the pod is still in-flight).
-func (tc *TestContext) verifySinglePCSReplicaUpdatedFirst(events []podEvent) {
+func verifySinglePCSReplicaUpdatedFirst(tc *tests.TestContext, events []podEvent) {
 	tc.T.Helper()
 
 	tests.Logger.Debug("=== Starting verifySinglePCSReplicaUpdatedFirst analysis ===")
@@ -697,7 +885,7 @@ func (tc *TestContext) verifySinglePCSReplicaUpdatedFirst(events []podEvent) {
 		}
 
 		// Get stable pod identifier (hostname) that persists across pod replacements
-		podID := tc.getPodIdentifier(event.Pod)
+		podID := getPodIdentifier(tc, event.pod)
 
 		// Track DELETE and ADDED events
 		switch event.eventType {
@@ -796,7 +984,7 @@ func getReplicaPodCount(m map[int]map[string]int, replicaIdx int, podID string) 
 // The controller considers a replica "update complete" when new pods are READY, not when old
 // pods are fully terminated. So we track by comparing ADDED vs DELETE counts, allowing
 // ADDED to offset DELETE regardless of order.
-func (tc *TestContext) verifyOnePCSGReplicaDeletedAtATime(events []podEvent) {
+func verifyOnePCSGReplicaDeletedAtATime(tc *tests.TestContext, events []podEvent) {
 	tc.T.Helper()
 
 	tests.Logger.Debug("=== Starting verifyOnePCSGReplicaDeletedAtATime analysis ===")
@@ -827,8 +1015,8 @@ func (tc *TestContext) verifyOnePCSGReplicaDeletedAtATime(events []podEvent) {
 	tests.Logger.Debug("=== Processing events to find concurrent deletions ===")
 	for i, event := range events {
 		// All pods should have labels - if nil, that's a bug
-		if event.Pod.Labels == nil {
-			tc.T.Fatalf("Pod %s has no labels, which indicates a bug in pod creation", event.Pod.Name)
+		if event.pod.Labels == nil {
+			tc.T.Fatalf("Pod %s has no labels, which indicates a bug in pod creation", event.pod.Name)
 		}
 
 		// Only process pods that belong to a PCSG (not all pods have this label)
@@ -839,7 +1027,7 @@ func (tc *TestContext) verifyOnePCSGReplicaDeletedAtATime(events []podEvent) {
 
 		pcsgName, ok := event.pod.Labels["grove.io/podcliquescalinggroup"]
 		if !ok {
-			tc.T.Fatalf("Pod %s has PCSG replica index but no PCSG name label", event.Pod.Name)
+			tc.T.Fatalf("Pod %s has PCSG replica index but no PCSG name label", event.pod.Name)
 		}
 
 		// Create a composite key to uniquely identify this PCSG replica globally
@@ -911,7 +1099,7 @@ func (tc *TestContext) verifyOnePCSGReplicaDeletedAtATime(events []podEvent) {
 //
 // IMPORTANT: This function handles the fact that Kubernetes watch events can arrive out of order.
 // See verifyOnePCSGReplicaDeletedAtATime for detailed explanation.
-func (tc *TestContext) verifyOnePCSGReplicaDeletedAtATimePerPCSG(events []podEvent) {
+func verifyOnePCSGReplicaDeletedAtATimePerPCSG(tc *tests.TestContext, events []podEvent) {
 	tc.T.Helper()
 
 	// Track DELETE and ADDED counts separately per replica per PCSG to handle out-of-order events.
@@ -922,8 +1110,8 @@ func (tc *TestContext) verifyOnePCSGReplicaDeletedAtATimePerPCSG(events []podEve
 
 	for _, event := range events {
 		// All pods should have labels - if nil, that's a bug
-		if event.Pod.Labels == nil {
-			tc.T.Fatalf("Pod %s has no labels, which indicates a bug in pod creation", event.Pod.Name)
+		if event.pod.Labels == nil {
+			tc.T.Fatalf("Pod %s has no labels, which indicates a bug in pod creation", event.pod.Name)
 		}
 
 		// Only process pods that belong to a PCSG (not all pods have this label)
@@ -934,7 +1122,7 @@ func (tc *TestContext) verifyOnePCSGReplicaDeletedAtATimePerPCSG(events []podEve
 
 		pcsgName, ok := event.pod.Labels["grove.io/podcliquescalinggroup"]
 		if !ok {
-			tc.T.Fatalf("Pod %s has PCSG replica index but no PCSG name label", event.Pod.Name)
+			tc.T.Fatalf("Pod %s has PCSG replica index but no PCSG name label", event.pod.Name)
 		}
 
 		switch event.eventType {
@@ -992,7 +1180,7 @@ func getCount(m map[string]map[string]int, key1, key2 string) int {
 // Uses tc.Workload.Name as the PCS name.
 // The operation runs asynchronously - receive from the returned channel to block until complete.
 // If delayMs > 0, the operation will sleep for that duration before starting.
-func (tc *TestContext) scalePodClique(cliqueName string, replicas int32, expectedTotalPods, delayMs int) <-chan error {
+func scalePodClique(tc *tests.TestContext, cliqueName string, replicas int32, expectedTotalPods, delayMs int) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
 		startTime := time.Now()
@@ -1003,7 +1191,7 @@ func (tc *TestContext) scalePodClique(cliqueName string, replicas int32, expecte
 
 		tests.Logger.Debugf("[scalePodClique] Scaling %s to %d replicas, expecting %d total pods", cliqueName, replicas, expectedTotalPods)
 
-		if err := tc.scalePodCliqueInPCS(cliqueName, replicas); err != nil {
+		if err := scalePodCliqueInPCS(tc, cliqueName, replicas); err != nil {
 			errCh <- fmt.Errorf("failed to scale PodClique %s: %w", cliqueName, err)
 			return
 		}
@@ -1035,45 +1223,39 @@ func (tc *TestContext) scalePodClique(cliqueName string, replicas int32, expecte
 	return errCh
 }
 
-// scalePodCliqueInPCS scales all PodClique instances for a given clique name across all PCS replicas.
-// Uses tc.Workload.Name as the PCS name.
-//
-// IMPORTANT: This function scales PodClique resources directly rather than modifying the PCS template.
-//
-// Why we can't scale via the PCS template:
-// The PCS controller intentionally preserves existing PodClique replica counts to support HPA
-// (Horizontal Pod Autoscaler) scaling. When a PodClique already exists, the controller does:
-//
-//	if pclqExists {
-//	    currentPCLQReplicas := pclq.Spec.Replicas  // Preserve existing value
-//	    pclq.Spec = pclqTemplateSpec.Spec          // Apply template
-//	    pclq.Spec.Replicas = currentPCLQReplicas   // Restore preserved value
-//	}
-//
-// This design prevents the PCS controller from fighting with HPA, which directly mutates
-// PodClique.Spec.Replicas. Without this behavior, HPA scaling would be immediately reverted
-// on the next PCS reconciliation.
-//
-// As a result, the PCS template's clique replicas value is only used during initial PodClique
-// creation. Post-creation scaling must be done by:
-//   - HPA (configured via ScaleConfig in the PCS template)
-//   - Direct patching of PodClique resources (what this function does)
-//
-// See: internal/controller/podcliqueset/components/podclique/podclique.go buildResource()
-func (tc *TestContext) scalePodCliqueInPCS(cliqueName string, replicas int32) error {
-	pcsGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquesets"}
-	pclqGVR := schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliques"}
-	pcsName := tc.Workload.Name
+// ============================================================================
+// OnDelete strategy utilities
+// ============================================================================
 
-	// Get the PCS to find out how many replicas it has
-	unstructuredPCS, err := tc.Clients.DynamicClient.Resource(pcsGVR).Namespace(tc.Namespace).Get(tc.Ctx, pcsName, metav1.GetOptions{})
+func waitForOnDeleteUpdateComplete(tc *tests.TestContext) error {
+	pollCount := 0
+	return tc.PollForCondition(func() (bool, error) {
+		pollCount++
+		pcs, err := utils.GetPodCliqueSet(tc.Ctx, tc.Clients.DynamicClient, tc.Workload.Name, tc.Namespace)
+		if err != nil {
+			return false, err
+		}
+
+		if utils.IsOnDeleteUpdateComplete(pcs) {
+			tests.Logger.Debugf("[waitForOnDeleteUpdateComplete] OnDelete update marked complete after %d polls (UpdatedReplicas=%d)",
+				pollCount, pcs.Status.UpdatedReplicas)
+			return true, nil
+		}
+
+		return false, nil
+	})
+}
+
+func verifyUpdateProgressFields(tc *tests.TestContext) {
+	tc.T.Helper()
+
+	updateProgress, err := utils.GetPCSUpdateProgress(tc.Ctx, tc.T, tc.Clients.DynamicClient, tc.Workload.Name, tc.Namespace)
 	if err != nil {
 		tc.T.Fatalf("Failed to get UpdateProgress: %v", err)
 	}
 
-	var pcs grovev1alpha1.PodCliqueSet
-	if err := k8s.ConvertUnstructuredToTyped(unstructuredPCS.Object, &pcs); err != nil {
-		return fmt.Errorf("failed to convert to PodCliqueSet: %w", err)
+	if updateProgress == nil {
+		tc.T.Fatalf("UpdateProgress should not be nil after OnDelete update")
 	}
 
 	if updateProgress.UpdateStartedAt.IsZero() {
@@ -1088,11 +1270,22 @@ func (tc *TestContext) scalePodCliqueInPCS(cliqueName string, replicas int32) er
 		tc.T.Fatalf("UpdateProgress.UpdatedPodCliques should be nil for OnDelete strategy, got %v", updateProgress.UpdatedPodCliques)
 	}
 
-			_, err = tc.Clients.DynamicClient.Resource(pclqGVR).Namespace(tc.Namespace).Patch(
-				tc.Ctx, pclqName, types.MergePatchType, patchBytes, metav1.PatchOptions{})
-			return err
-		}); err != nil {
-			return fmt.Errorf("failed to scale PodClique %s: %w", pclqName, err)
+	if updateProgress.UpdatedPodCliqueScalingGroups != nil {
+		tc.T.Fatalf("UpdateProgress.UpdatedPodCliqueScalingGroups should be nil for OnDelete strategy, got %v", updateProgress.UpdatedPodCliqueScalingGroups)
+	}
+
+	if updateProgress.CurrentlyUpdating != nil {
+		tc.T.Fatalf("UpdateProgress.CurrentlyUpdating should be nil for OnDelete strategy, got %v", updateProgress.CurrentlyUpdating)
+	}
+}
+
+func verifyNoPodsDeleted(tc *tests.TestContext, events []podEvent, existingPodNames map[string]bool) {
+	tc.T.Helper()
+
+	deletedPods := []string{}
+	for _, event := range events {
+		if event.eventType == watch.Deleted && existingPodNames[event.pod.Name] {
+			deletedPods = append(deletedPods, event.pod.Name)
 		}
 	}
 
@@ -1101,29 +1294,20 @@ func (tc *TestContext) scalePodCliqueInPCS(cliqueName string, replicas int32) er
 	}
 }
 
-func waitForOnDeleteUpdateCompleteWithTimeout(tc tests.TestContext, timeout time.Duration) error {
-	tcWithTimeout := tc
+func waitForOnDeleteUpdateCompleteWithTimeout(tc *tests.TestContext, timeout time.Duration) error {
+	tcWithTimeout := *tc
 	tcWithTimeout.Timeout = timeout
-	return waitForOnDeleteUpdateComplete(tcWithTimeout)
+	return waitForOnDeleteUpdateComplete(&tcWithTimeout)
 }
 
-// setupRollingUpdateTest initializes a rolling update test with the given configuration.
-// It handles:
-// 1. Cluster preparation with required worker nodes
-// 2. TestContext creation with standard parameters
-// 3. Workload deployment and pod verification
-// 4. Optional SIGTERM patch application (before scaling to apply to original workload)
-// 5. Optional PCS scaling to initial replicas
-// 6. Optional PCSG scaling
-// 7. Tracker creation and startup
-//
-// Returns:
-//   - tc: *TestContext for the test
-//   - cleanup: Function that should be deferred by the caller (stops tracker and cleans up cluster)
-//   - tracker: Started rolling update tracker - caller can use tracker.getEvents() after stopping
-func setupRollingUpdateTest(t *testing.T, cfg RollingUpdateTestConfig) (*TestContext, func(), *rollingUpdateTracker) {
-	t.Helper()
-	ctx := context.Background()
+func verifyNoAutomaticDeletionAfterUpdate(
+	tc *tests.TestContext,
+	tracker *updateTracker,
+	existingPodNames map[string]bool,
+	expectedPods int,
+	verifyProgressFields bool,
+) {
+	tc.T.Helper()
 
 	time.Sleep(10 * time.Second)
 
@@ -1131,82 +1315,101 @@ func setupRollingUpdateTest(t *testing.T, cfg RollingUpdateTestConfig) (*TestCon
 		tc.T.Fatalf("Failed to verify OnDelete update completion: %v", err)
 	}
 
-	// Step 1+2: Prepare test suite (cluster + clients + managers)
-	tc, suiteCleanup := prepareTest(ctx, t, cfg.WorkerNodes,
-		WithNamespace(cfg.Namespace),
-		WithWorkload(&WorkloadConfig{
-			Name:         cfg.WorkloadName,
-			YAMLPath:     cfg.WorkloadYAML,
-			Namespace:    cfg.Namespace,
-			ExpectedPods: cfg.ExpectedPods,
-		}),
-	)
+	if verifyProgressFields {
+		verifyUpdateProgressFields(tc)
+	}
 
-	// Step 3: Deploy workload and verify initial pods
-	pods, err := tc.DeployAndVerifyWorkload()
+	tracker.stop()
+	events := tracker.getEvents()
+	verifyNoPodsDeleted(tc, events, existingPodNames)
+
+	pods, err := tc.ListPods()
 	if err != nil {
-		suiteCleanup()
-		t.Fatalf("Failed to deploy workload: %v", err)
+		tc.T.Fatalf("Failed to list pods: %v", err)
 	}
 
-	if err := tc.WaitForPods(cfg.ExpectedPods); err != nil {
-		suiteCleanup()
-		t.Fatalf("Failed to wait for pods to be ready: %v", err)
+	if len(pods.Items) != expectedPods {
+		tc.T.Fatalf("Expected %d pods to still be running, but got %d", expectedPods, len(pods.Items))
 	}
+}
 
-	if len(pods.Items) != cfg.ExpectedPods {
-		suiteCleanup()
-		t.Fatalf("Expected %d pods, but found %d", cfg.ExpectedPods, len(pods.Items))
-	}
+// excludeNodeFromPodCliqueAffinity updates the PCS spec to add a nodeAffinity exclusion
+// (kubernetes.io/hostname NotIn [nodeName]) to the specified PodClique's nodeAffinity.
+// This simulates the node failure recovery workflow from GREP-291 Example Usage,
+// where a failed node is excluded by adding a NotIn matchExpression for its hostname.
+func excludeNodeFromPodCliqueAffinity(tc *tests.TestContext, cliqueName string, nodeName string) error {
+	tc.T.Helper()
 
-	// Step 4: Optional SIGTERM patch (must happen before scaling to apply to original workload)
-	if cfg.PatchSIGTERM {
-		if err := tc.patchPCSWithSIGTERMIgnoringCommand(); err != nil {
-			suiteCleanup()
-			t.Fatalf("Failed to patch PCS with SIGTERM-ignoring command: %v", err)
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		pcs, err := utils.GetPodCliqueSet(tc.Ctx, tc.Clients.DynamicClient, tc.Workload.Name, tc.Namespace)
+		if err != nil {
+			return fmt.Errorf("failed to get PodCliqueSet: %w", err)
 		}
 
-		tsLongTimeout := *tc
-		tsLongTimeout.Timeout = 2 * time.Minute
-		if err := tsLongTimeout.waitForRollingUpdateComplete(1); err != nil {
-			suiteCleanup()
-			t.Fatalf("Failed to wait for SIGTERM patch rolling update to complete: %v", err)
+		found := false
+		for i, clique := range pcs.Spec.Template.Cliques {
+			if clique.Name == cliqueName {
+				affinity := pcs.Spec.Template.Cliques[i].Spec.PodSpec.Affinity
+				if affinity == nil || affinity.NodeAffinity == nil ||
+					affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil ||
+					len(affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms) == 0 {
+					return fmt.Errorf("clique %s has no existing nodeAffinity nodeSelectorTerms to append to", cliqueName)
+				}
+
+				// Append a NotIn matchExpression to the first nodeSelectorTerm, matching the GREP-291 Example Usage:
+				//   - key: kubernetes.io/hostname
+				//     operator: NotIn
+				//     values: [<failed-node-name>]
+				terms := &affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0]
+				terms.MatchExpressions = append(terms.MatchExpressions, corev1.NodeSelectorRequirement{
+					Key:      "kubernetes.io/hostname",
+					Operator: corev1.NodeSelectorOpNotIn,
+					Values:   []string{nodeName},
+				})
+
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return fmt.Errorf("clique %s not found in PodCliqueSet %s", cliqueName, tc.Workload.Name)
+		}
+
+		updatedUnstructured, err := tests.ConvertTypedToUnstructured(&pcs)
+		if err != nil {
+			return fmt.Errorf("failed to convert to unstructured: %w", err)
+		}
+
+		_, err = tc.Clients.DynamicClient.Resource(utils.PodCliqueSetGVR).Namespace(tc.Namespace).Update(tc.Ctx, updatedUnstructured, metav1.UpdateOptions{})
+		return err
+	})
+}
+
+// verifyPodHasNodeAffinityExclusion checks that the given pod's spec contains a
+// kubernetes.io/hostname NotIn matchExpression that excludes the specified node name.
+func verifyPodHasNodeAffinityExclusion(tc *tests.TestContext, podName string, excludedNode string) error {
+	tc.T.Helper()
+
+	pod, err := tc.Clients.Clientset.CoreV1().Pods(tc.Namespace).Get(tc.Ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get pod %s: %w", podName, err)
+	}
+
+	if pod.Spec.Affinity == nil || pod.Spec.Affinity.NodeAffinity == nil ||
+		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+		return fmt.Errorf("pod %s has no requiredDuringSchedulingIgnoredDuringExecution nodeAffinity", podName)
+	}
+
+	for _, term := range pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
+		for _, expr := range term.MatchExpressions {
+			if expr.Key == "kubernetes.io/hostname" && expr.Operator == corev1.NodeSelectorOpNotIn {
+				if slices.Contains(expr.Values, excludedNode) {
+					return nil
+				}
+			}
 		}
 	}
 
-	// Step 5: Optional PCS scaling
-	if cfg.InitialPCSReplicas > 0 {
-		tc.ScalePCSAndWait(cfg.WorkloadName, cfg.InitialPCSReplicas, cfg.PostScalePods, 0)
-
-		if err := tc.WaitForPods(cfg.PostScalePods); err != nil {
-			suiteCleanup()
-			t.Fatalf("Failed to wait for pods to be ready after PCS scaling: %v", err)
-		}
-	}
-
-	// Step 6: Optional PCSG scaling
-	if cfg.InitialPCSGReplicas > 0 && cfg.PCSGName != "" {
-		// Scale across all PCS replicas
-		pcsReplicas := int32(1)
-		if cfg.InitialPCSReplicas > 0 {
-			pcsReplicas = cfg.InitialPCSReplicas
-		}
-		tc.ScalePCSGAcrossAllReplicasAndWait(cfg.WorkloadName, cfg.PCSGName, pcsReplicas, cfg.InitialPCSGReplicas, cfg.PostPCSGScalePods, 0)
-	}
-
-	// Step 7: Create and start tracker
-	tracker := newRollingUpdateTracker()
-	if err := tracker.Start(tc); err != nil {
-		suiteCleanup()
-		t.Fatalf("Failed to start tracker: %v", err)
-	}
-
-	// Create combined cleanup function
-	// Note: suiteCleanup already handles diagnostics collection on failure
-	cleanup := func() {
-		tracker.Stop()
-		suiteCleanup()
-	}
-
-	return tc, cleanup, tracker
+	return fmt.Errorf("pod %s does not have kubernetes.io/hostname NotIn [%s] in its nodeAffinity", podName, excludedNode)
 }
