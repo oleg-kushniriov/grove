@@ -92,7 +92,7 @@ func NewDiagCollector(clients *clients.Clients, namespace, mode, dir string, log
 }
 
 // CollectAll collects and outputs all diagnostic information.
-func (dc *DiagCollector) CollectAll(testName string) {
+func (dc *DiagCollector) CollectAll(ctx context.Context, testName string) {
 	output, filename, err := dc.createOutput(testName)
 	if err != nil {
 		dc.logger.Errorf("Failed to create diagnostics output, falling back to stdout: %v", err)
@@ -110,10 +110,10 @@ func (dc *DiagCollector) CollectAll(testName string) {
 	diagLogger.Info("=== COLLECTING FAILURE DIAGNOSTICS ===")
 	diagLogger.Info("================================================================================")
 
-	dc.dumpOperatorLogs(diagLogger)
-	dc.dumpGroveResources(diagLogger)
-	dc.dumpPodDetails(diagLogger)
-	dc.dumpRecentEvents(diagLogger)
+	dc.dumpOperatorLogs(ctx, diagLogger)
+	dc.dumpGroveResources(ctx, diagLogger)
+	dc.dumpPodDetails(ctx, diagLogger)
+	dc.dumpRecentEvents(ctx, diagLogger)
 
 	diagLogger.Info("================================================================================")
 	diagLogger.Info("=== END OF FAILURE DIAGNOSTICS ===")
@@ -124,12 +124,10 @@ func (dc *DiagCollector) CollectAll(testName string) {
 	}
 }
 
-func (dc *DiagCollector) dumpOperatorLogs(logger *utils.Logger) {
+func (dc *DiagCollector) dumpOperatorLogs(ctx context.Context, logger *utils.Logger) {
 	logger.Info("================================================================================")
 	logger.Info("=== OPERATOR LOGS (all) ===")
 	logger.Info("================================================================================")
-
-	ctx := context.Background()
 	pods, err := dc.clients.Clientset.CoreV1().Pods(setup.OperatorNamespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		logger.Infof("[DIAG] Failed to list pods in namespace %s: %v", setup.OperatorNamespace, err)
@@ -208,12 +206,10 @@ func (dc *DiagCollector) dumpOperatorLogs(logger *utils.Logger) {
 	}
 }
 
-func (dc *DiagCollector) dumpGroveResources(logger *utils.Logger) {
+func (dc *DiagCollector) dumpGroveResources(ctx context.Context, logger *utils.Logger) {
 	logger.Info("================================================================================")
 	logger.Info("=== GROVE RESOURCES ===")
 	logger.Info("================================================================================")
-
-	ctx := context.Background()
 
 	for _, rt := range groveResourceTypes {
 		logger.Infof("[DIAG] Listing %s in namespace %s...", rt.name, dc.namespace)
@@ -247,12 +243,10 @@ func (dc *DiagCollector) dumpGroveResources(logger *utils.Logger) {
 	}
 }
 
-func (dc *DiagCollector) dumpPodDetails(logger *utils.Logger) {
+func (dc *DiagCollector) dumpPodDetails(ctx context.Context, logger *utils.Logger) {
 	logger.Info("================================================================================")
 	logger.Info("=== POD DETAILS ===")
 	logger.Info("================================================================================")
-
-	ctx := context.Background()
 
 	logger.Infof("[DIAG] Listing all pods in namespace %s...", dc.namespace)
 	pods, err := dc.clients.Clientset.CoreV1().Pods(dc.namespace).List(ctx, metav1.ListOptions{})
@@ -319,12 +313,10 @@ func (dc *DiagCollector) dumpPodDetails(logger *utils.Logger) {
 	}
 }
 
-func (dc *DiagCollector) dumpRecentEvents(logger *utils.Logger) {
+func (dc *DiagCollector) dumpRecentEvents(ctx context.Context, logger *utils.Logger) {
 	logger.Info("================================================================================")
 	logger.Infof("=== KUBERNETES EVENTS (last %v) ===", eventLookbackDuration)
 	logger.Info("================================================================================")
-
-	ctx := context.Background()
 
 	logger.Infof("[DIAG] Listing events in namespace %s...", dc.namespace)
 	events, err := dc.clients.Clientset.CoreV1().Events(dc.namespace).List(ctx, metav1.ListOptions{})

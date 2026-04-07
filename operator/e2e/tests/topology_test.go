@@ -647,7 +647,7 @@ func Test_TAS10_PCSGScalingWithTopologyConstraints(t *testing.T) {
 
 	// Verify PCSG replicas 1-2 (minAvailable=1, totalReplicas=3)
 	lo.ForEach([]int{1, 2}, func(pcsgReplica int, _ int) {
-		podGroupVerifier.VerifyScaledPCSGReplicaTopology(tc.Ctx, t, tc.Namespace, tc.Workload.Name, 0,
+		if err := podGroupVerifier.VerifyScaledPCSGReplicaTopology(tc.Ctx, tc.Namespace, tc.Workload.Name, 0,
 			podgroup.ScaledPCSGConfig{
 				Name:         "inference-group",
 				PCSGName:     "inference-group",
@@ -657,7 +657,9 @@ func Test_TAS10_PCSGScalingWithTopologyConstraints(t *testing.T) {
 					{Name: "worker", PodCount: 2, Constraint: ""},
 				},
 				Constraint: setup.TopologyLabelRack,
-			}, setup.TopologyLabelBlock)
+			}, setup.TopologyLabelBlock); err != nil {
+			t.Fatalf("Failed to verify scaled PCSG replica %d topology: %v", pcsgReplica, err)
+		}
 	})
 
 	Logger.Info("🎉 TAS10: PCSG Scaling with Topology Constraints test completed successfully!")
@@ -1032,8 +1034,10 @@ func Test_TAS15_DisaggregatedInferenceMultiplePCSGs(t *testing.T) {
 
 	// Verify each PCSG's scaled replica
 	lo.ForEach(pcsgConfigs, func(pcsgConfig podgroup.ScaledPCSGConfig, _ int) {
-		podGroupVerifier.VerifyScaledPCSGReplicaTopology(tc.Ctx, t, tc.Namespace, tc.Workload.Name, 0,
-			pcsgConfig, setup.TopologyLabelBlock)
+		if err := podGroupVerifier.VerifyScaledPCSGReplicaTopology(tc.Ctx, tc.Namespace, tc.Workload.Name, 0,
+			pcsgConfig, setup.TopologyLabelBlock); err != nil {
+			t.Fatalf("Failed to verify scaled PCSG %s topology: %v", pcsgConfig.Name, err)
+		}
 	})
 
 	Logger.Info("🎉 TAS15: Disaggregated Inference with Multiple PCSGs test completed successfully!")

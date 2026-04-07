@@ -110,17 +110,29 @@ func (wm *WorkloadManager) DeletePCSAndWait(ctx context.Context, namespace, name
 
 	return k8s.PollForCondition(ctx, timeout, interval, func() (bool, error) {
 		_, err := wm.clients.DynamicClient.Resource(podCliqueSetGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
-		return errors.IsNotFound(err), nil
+		if errors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return false, nil
 	})
 }
 
 // WaitForPCSG polls until a PodCliqueScalingGroup exists and returns it.
-func (wm *WorkloadManager) WaitForPCSG(ctx context.Context, groveClient groveclient.Interface, namespace, name string, timeout, interval time.Duration) (*grovecorev1alpha1.PodCliqueScalingGroup, error) {
+func (wm *WorkloadManager) WaitForPCSG(ctx context.Context, namespace, name string, timeout, interval time.Duration) (*grovecorev1alpha1.PodCliqueScalingGroup, error) {
 	var pcsg *grovecorev1alpha1.PodCliqueScalingGroup
 	err := k8s.PollForCondition(ctx, timeout, interval, func() (bool, error) {
 		var getErr error
-		pcsg, getErr = groveClient.GroveV1alpha1().PodCliqueScalingGroups(namespace).Get(ctx, name, metav1.GetOptions{})
-		return getErr == nil, nil
+		pcsg, getErr = wm.clients.GroveClient.GroveV1alpha1().PodCliqueScalingGroups(namespace).Get(ctx, name, metav1.GetOptions{})
+		if errors.IsNotFound(getErr) {
+			return false, nil
+		}
+		if getErr != nil {
+			return false, getErr
+		}
+		return true, nil
 	})
 	return pcsg, err
 }
@@ -131,7 +143,13 @@ func (wm *WorkloadManager) WaitForPodClique(ctx context.Context, groveClient gro
 	err := k8s.PollForCondition(ctx, timeout, interval, func() (bool, error) {
 		var getErr error
 		pclq, getErr = groveClient.GroveV1alpha1().PodCliques(namespace).Get(ctx, name, metav1.GetOptions{})
-		return getErr == nil, nil
+		if errors.IsNotFound(getErr) {
+			return false, nil
+		}
+		if getErr != nil {
+			return false, getErr
+		}
+		return true, nil
 	})
 	return pclq, err
 }

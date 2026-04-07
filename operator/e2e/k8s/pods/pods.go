@@ -67,16 +67,13 @@ func (pm *PodManager) List(ctx context.Context, namespace, labelSelector string)
 // labelSelector is optional (pass empty string for all pods).
 // expectedCount is the expected number of pods (pass 0 to skip count validation).
 func (pm *PodManager) WaitForReady(ctx context.Context, namespaces []string, labelSelector string, expectedCount int, timeout, interval time.Duration) error {
-	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
 	if len(namespaces) == 0 {
 		namespaces = []string{"default"}
 	}
 
 	pm.logger.Debugf("Waiting for pods to be ready in namespaces: %v", namespaces)
 
-	return wait.PollUntilContextTimeout(timeoutCtx, interval, timeout, true, func(ctx context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
 		totalPods := 0
 		readyPods := 0
 

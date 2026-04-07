@@ -181,6 +181,18 @@ func (rm *ResourceManager) createResource(ctx context.Context, gvr schema.GroupV
 }
 
 func (rm *ResourceManager) updateResource(ctx context.Context, gvr schema.GroupVersionResource, mapping *meta.RESTMapping, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	var existing *unstructured.Unstructured
+	var err error
+	if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+		existing, err = rm.clients.DynamicClient.Resource(gvr).Namespace(obj.GetNamespace()).Get(ctx, obj.GetName(), metav1.GetOptions{})
+	} else {
+		existing, err = rm.clients.DynamicClient.Resource(gvr).Get(ctx, obj.GetName(), metav1.GetOptions{})
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get existing resource for update: %w", err)
+	}
+	obj.SetResourceVersion(existing.GetResourceVersion())
+
 	if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
 		return rm.clients.DynamicClient.Resource(gvr).Namespace(obj.GetNamespace()).Update(ctx, obj, metav1.UpdateOptions{})
 	}

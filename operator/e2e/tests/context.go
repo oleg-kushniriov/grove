@@ -50,8 +50,7 @@ type TestContext struct {
 	Namespace string
 	Timeout   time.Duration
 	Interval  time.Duration
-	Workload  *WorkloadConfig
-	NodeNames []string // Reserved nodes for this suite (future: from NodePool)
+	Workload *WorkloadConfig
 }
 
 // TestOption configures a TestContext.
@@ -117,14 +116,14 @@ func PrepareTest(ctx context.Context, t *testing.T, requiredWorkerNodes int, opt
 
 	cleanup := func() {
 		if t.Failed() {
-			diag.CollectAll(t.Name())
+			diag.CollectAll(ctx, t.Name())
 		}
 
 		if err := sharedCluster.CleanupWorkloads(ctx); err != nil {
 			Logger.Error("================================================================================")
 			Logger.Error("=== CLEANUP FAILURE - COLLECTING DIAGNOSTICS ===")
 			Logger.Error("================================================================================")
-			diag.CollectAll(t.Name())
+			diag.CollectAll(ctx, t.Name())
 			sharedCluster.MarkCleanupFailed(err)
 			t.Fatalf("Failed to cleanup workloads: %v. All subsequent tests will fail.", err)
 		}

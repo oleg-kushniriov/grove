@@ -21,7 +21,6 @@ package podgroup
 import (
 	"context"
 	"fmt"
-	"testing"
 	"time"
 
 	kaischedulingv2alpha2 "github.com/NVIDIA/KAI-scheduler/pkg/apis/scheduling/v2alpha2"
@@ -300,10 +299,10 @@ func (pv *PodGroupVerifier) VerifyPodGroupTopology(podGroup *kaischedulingv2alph
 }
 
 // VerifyScaledPCSGReplicaTopology verifies KAI PodGroup for one scaled PCSG replica.
-func (pv *PodGroupVerifier) VerifyScaledPCSGReplicaTopology(ctx context.Context, t *testing.T, namespace, pcsName string, pcsReplica int, pcsgConfig ScaledPCSGConfig, pcsConstraint string) {
+func (pv *PodGroupVerifier) VerifyScaledPCSGReplicaTopology(ctx context.Context, namespace, pcsName string, pcsReplica int, pcsgConfig ScaledPCSGConfig, pcsConstraint string) error {
 	podGroups, err := pv.GetKAIPodGroupsForPCS(ctx, namespace, pcsName)
 	if err != nil {
-		t.Fatalf("Failed to get KAI PodGroups: %v", err)
+		return fmt.Errorf("failed to get KAI PodGroups: %w", err)
 	}
 
 	pcsgFQN := nameutils.GeneratePodCliqueScalingGroupName(
@@ -315,7 +314,7 @@ func (pv *PodGroupVerifier) VerifyScaledPCSGReplicaTopology(ctx context.Context,
 
 	scaledPodGroup, err := FilterPodGroupByOwner(podGroups, scaledPodGangName)
 	if err != nil {
-		t.Fatalf("Failed to find scaled PodGroup for %s: %v", scaledPodGangName, err)
+		return fmt.Errorf("failed to find scaled PodGroup for %s: %w", scaledPodGangName, err)
 	}
 
 	var expectedSubGroups []ExpectedSubGroup
@@ -329,8 +328,5 @@ func (pv *PodGroupVerifier) VerifyScaledPCSGReplicaTopology(ctx context.Context,
 		scaledTopConstraint = pcsgConfig.Constraint
 	}
 
-	if err := pv.VerifyPodGroupTopology(scaledPodGroup, scaledTopConstraint, "", expectedSubGroups); err != nil {
-		t.Fatalf("Failed to verify scaled PodGroup %s (%s replica %d) topology: %v",
-			scaledPodGangName, pcsgConfig.Name, pcsgConfig.PCSGReplica, err)
-	}
+	return pv.VerifyPodGroupTopology(scaledPodGroup, scaledTopConstraint, "", expectedSubGroups)
 }
