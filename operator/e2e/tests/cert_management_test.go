@@ -34,6 +34,8 @@ import (
 	"time"
 
 	configv1alpha1 "github.com/ai-dynamo/grove/operator/api/config/v1alpha1"
+	"github.com/ai-dynamo/grove/operator/e2e/grove"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -173,12 +175,14 @@ func Test_CM1_CertManagementRoundTrip(t *testing.T) {
 	defer cleanup()
 
 	// Create Issuer and Certificate using pre-created clients from prepareTest
-	if _, err := tc.Resources.ApplyYAMLData(ctx, []byte(certManagerIssuerYAML), ""); err != nil {
+	resources := k8s.NewResourceManager(tc.Clients, Logger)
+
+	if _, err := resources.ApplyYAMLData(ctx, []byte(certManagerIssuerYAML), ""); err != nil {
 		t.Fatalf("Failed to apply ClusterIssuer: %v", err)
 	}
 	waitForClusterIssuer(t, ctx, tc.Clients.DynamicClient, "selfsigned-issuer")
 
-	if _, err := tc.Resources.ApplyYAMLData(ctx, []byte(certManagerCertificateYAML), ""); err != nil {
+	if _, err := resources.ApplyYAMLData(ctx, []byte(certManagerCertificateYAML), ""); err != nil {
 		t.Fatalf("Failed to apply Certificate: %v", err)
 	}
 
@@ -237,7 +241,8 @@ func deletePodCliqueSetAndWait(t *testing.T, ctx context.Context, tc *TestContex
 	t.Helper()
 
 	Logger.Debugf("Deleting PodCliqueSet %s/%s", namespace, name)
-	if err := tc.Workloads.DeletePCSAndWait(ctx, namespace, name, DefaultPollTimeout, DefaultPollInterval); err != nil {
+	workloads := grove.NewWorkloadManager(tc.Clients, Logger)
+	if err := workloads.DeletePCSAndWait(ctx, namespace, name, DefaultPollTimeout, DefaultPollInterval); err != nil {
 		t.Fatalf("Failed to delete PodCliqueSet %s: %v", name, err)
 	}
 	Logger.Debugf("PodCliqueSet %s/%s deleted", namespace, name)
@@ -327,7 +332,7 @@ func installCertManager(t *testing.T, ctx context.Context, tc *TestContext) {
 	}
 
 	// Ensure cert-manager is actually up and running before returning
-	if err := tc.Pods.WaitForReadyInNamespace(ctx, cmConfig.Namespace, 3, DefaultPollTimeout, DefaultPollInterval); err != nil {
+	if err := k8s.NewPodManager(tc.Clients, Logger).WaitForReadyInNamespace(ctx, cmConfig.Namespace, 3, DefaultPollTimeout, DefaultPollInterval); err != nil {
 		t.Fatalf("cert-manager pods failed to become ready: %v", err)
 	}
 }

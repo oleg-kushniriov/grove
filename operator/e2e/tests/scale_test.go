@@ -29,6 +29,7 @@ import (
 
 	"github.com/ai-dynamo/grove/operator/e2e/diagnostics"
 	"github.com/ai-dynamo/grove/operator/e2e/grove"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s"
 	"github.com/ai-dynamo/grove/operator/e2e/utils/measurement"
 	"github.com/ai-dynamo/grove/operator/e2e/utils/measurement/condition"
 	"github.com/ai-dynamo/grove/operator/e2e/utils/measurement/exporter"
@@ -75,7 +76,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 	)
 	defer cleanup()
 
-	metadata, err := tc.Config.ReadGroveMetadata(ctx)
+	metadata, err := grove.NewOperatorConfig(tc.Clients).ReadGroveMetadata(ctx)
 	if err != nil {
 		t.Fatalf("failed to read grove metadata: %v", err)
 	}
@@ -95,7 +96,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 	tracker.AddPhase(measurement.PhaseDefinition{
 		Name: "deploy",
 		ActionFn: func(ctx context.Context) error {
-			_, err := tc.Resources.ApplyYAMLFile(ctx, tc.Workload.YAMLPath, tc.Namespace)
+			_, err := k8s.NewResourceManager(tc.Clients, Logger).ApplyYAMLFile(ctx, tc.Workload.YAMLPath, tc.Namespace)
 			return err
 		},
 		Milestones: []measurement.MilestoneDefinition{
@@ -132,7 +133,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 	tracker.AddPhase(measurement.PhaseDefinition{
 		Name: "delete",
 		ActionFn: func(ctx context.Context) error {
-			return tc.Workloads.DeletePCS(ctx, tc.Namespace, tc.Workload.Name)
+			return grove.NewWorkloadManager(tc.Clients, Logger).DeletePCS(ctx, tc.Namespace, tc.Workload.Name)
 		},
 		Milestones: []measurement.MilestoneDefinition{
 			{

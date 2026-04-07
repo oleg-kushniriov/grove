@@ -55,11 +55,11 @@ type WorkloadManager struct {
 }
 
 // NewWorkloadManager creates a WorkloadManager bound to the given clients.
-func NewWorkloadManager(clients *k8s.Clients, resources *k8s.ResourceManager, pods *k8s.PodManager, logger *utils.Logger) *WorkloadManager {
+func NewWorkloadManager(clients *k8s.Clients, logger *utils.Logger) *WorkloadManager {
 	return &WorkloadManager{
 		clients:   clients,
-		resources: resources,
-		pods:      pods,
+		resources: k8s.NewResourceManager(clients, logger),
+		pods:      k8s.NewPodManager(clients, logger),
 		logger:    logger,
 	}
 }

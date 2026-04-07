@@ -33,24 +33,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// TestContext is the primary per-test helper struct that composes domain-specific managers.
-// Clients are created once and shared across all managers.
+// TestContext is the primary per-test helper struct.
+// Clients are created once and shared; domain managers are created by tests on demand.
 type TestContext struct {
 	T   *testing.T
 	Ctx context.Context
 
 	// Shared clients (created once per test run, goroutine-safe)
 	Clients *k8s.Clients
-
-	// Domain managers (created per-suite, hold reference to shared Clients)
-	Pods      *k8s.PodManager
-	Nodes     *k8s.NodeManager
-	Resources *k8s.ResourceManager
-	Workloads *grove.WorkloadManager
-	Topology  *grove.TopologyVerifier
-	PodGroups *grove.PodGroupVerifier
-	Config    *grove.OperatorConfig
-	Diag      *diagnostics.DiagCollector
 
 	// Per-suite configuration
 	Namespace string
@@ -98,23 +88,6 @@ func NewTestContext(t *testing.T, ctx context.Context, clients *k8s.Clients, opt
 		opt(tc)
 	}
 
-	// Initialize managers
-	tc.Pods = k8s.NewPodManager(clients, Logger)
-	tc.Nodes = k8s.NewNodeManager(clients, Logger)
-	tc.Resources = k8s.NewResourceManager(clients, Logger)
-	tc.Workloads = grove.NewWorkloadManager(clients, tc.Resources, tc.Pods, Logger)
-	tc.Topology = grove.NewTopologyVerifier(clients, Logger)
-	tc.PodGroups = grove.NewPodGroupVerifier(clients, Logger)
-	tc.Config = grove.NewOperatorConfig(clients)
-
-	// Initialize diagnostics
-	diagMode := os.Getenv(diagnostics.ModeEnvVar)
-	if diagMode == "" {
-		diagMode = diagnostics.ModeFile
-	}
-	diagDir := os.Getenv(diagnostics.DirEnvVar)
-	tc.Diag = diagnostics.NewDiagCollector(clients, tc.Namespace, diagMode, diagDir, Logger)
-
 	return tc
 }
 
@@ -130,16 +103,24 @@ func PrepareTest(ctx context.Context, t *testing.T, requiredWorkerNodes int, opt
 	clients := sharedCluster.GetAllClients()
 	tc := NewTestContext(t, ctx, clients, opts...)
 
+	// Initialize diagnostics for cleanup
+	diagMode := os.Getenv(diagnostics.ModeEnvVar)
+	if diagMode == "" {
+		diagMode = diagnostics.ModeFile
+	}
+	diagDir := os.Getenv(diagnostics.DirEnvVar)
+	diag := diagnostics.NewDiagCollector(clients, tc.Namespace, diagMode, diagDir, Logger)
+
 	cleanup := func() {
 		if t.Failed() {
-			tc.Diag.CollectAll(t.Name())
+			diag.CollectAll(t.Name())
 		}
 
 		if err := sharedCluster.CleanupWorkloads(ctx); err != nil {
 			Logger.Error("================================================================================")
 			Logger.Error("=== CLEANUP FAILURE - COLLECTING DIAGNOSTICS ===")
 			Logger.Error("================================================================================")
-			tc.Diag.CollectAll(t.Name())
+			diag.CollectAll(t.Name())
 			sharedCluster.MarkCleanupFailed(err)
 			t.Fatalf("Failed to cleanup workloads: %v. All subsequent tests will fail.", err)
 		}
@@ -149,6 +130,26 @@ func PrepareTest(ctx context.Context, t *testing.T, requiredWorkerNodes int, opt
 }
 
 // --- Convenience methods that delegate to managers with suite-scoped defaults ---
+
+// newPodManager creates a PodManager for internal use by convenience methods.
+func (tc *TestContext) newPodManager() *k8s.PodManager {
+	return k8s.NewPodManager(tc.Clients, Logger)
+}
+
+// newNodeManager creates a NodeManager for internal use by convenience methods.
+func (tc *TestContext) newNodeManager() *k8s.NodeManager {
+	return k8s.NewNodeManager(tc.Clients, Logger)
+}
+
+// newResourceManager creates a ResourceManager for internal use by convenience methods.
+func (tc *TestContext) newResourceManager() *k8s.ResourceManager {
+	return k8s.NewResourceManager(tc.Clients, Logger)
+}
+
+// newWorkloadManager creates a WorkloadManager for internal use by convenience methods.
+func (tc *TestContext) newWorkloadManager() *grove.WorkloadManager {
+	return grove.NewWorkloadManager(tc.Clients, Logger)
+}
 
 // getLabelSelector returns the label selector for the current workload.
 func (tc *TestContext) getLabelSelector() string {
@@ -165,22 +166,22 @@ func (tc *TestContext) PollForCondition(condition func() (bool, error)) error {
 
 // ListPods lists pods matching the current workload's label selector.
 func (tc *TestContext) ListPods() (*v1.PodList, error) {
-	return tc.Pods.List(tc.Ctx, tc.Namespace, tc.getLabelSelector())
+	return tc.newPodManager().List(tc.Ctx, tc.Namespace, tc.getLabelSelector())
 }
 
 // WaitForPods waits for the expected pod count to be ready.
 func (tc *TestContext) WaitForPods(expectedCount int) error {
-	return tc.Pods.WaitForReady(tc.Ctx, []string{tc.Namespace}, tc.getLabelSelector(), expectedCount, tc.Timeout, tc.Interval)
+	return tc.newPodManager().WaitForReady(tc.Ctx, []string{tc.Namespace}, tc.getLabelSelector(), expectedCount, tc.Timeout, tc.Interval)
 }
 
 // WaitForPodCount waits for a specific number of pods and returns them.
 func (tc *TestContext) WaitForPodCount(expectedCount int) (*v1.PodList, error) {
-	return tc.Pods.WaitForCount(tc.Ctx, tc.Namespace, tc.getLabelSelector(), expectedCount, tc.Timeout, tc.Interval)
+	return tc.newPodManager().WaitForCount(tc.Ctx, tc.Namespace, tc.getLabelSelector(), expectedCount, tc.Timeout, tc.Interval)
 }
 
 // WaitForPodCountAndPhases waits for pods to reach specific total count and phase counts.
 func (tc *TestContext) WaitForPodCountAndPhases(expectedTotal, expectedRunning, expectedPending int) error {
-	return tc.Pods.WaitForCountAndPhases(tc.Ctx, tc.Namespace, tc.getLabelSelector(), expectedTotal, expectedRunning, expectedPending, tc.Timeout, tc.Interval)
+	return tc.newPodManager().WaitForCountAndPhases(tc.Ctx, tc.Namespace, tc.getLabelSelector(), expectedTotal, expectedRunning, expectedPending, tc.Timeout, tc.Interval)
 }
 
 // WaitForPodPhases waits for pods to reach specific running and pending counts.
@@ -222,12 +223,12 @@ func (tc *TestContext) WaitForRunningPods(expectedRunning int) error {
 
 // CordonNode marks a node as unschedulable.
 func (tc *TestContext) CordonNode(nodeName string) error {
-	return tc.Nodes.Cordon(tc.Ctx, nodeName)
+	return tc.newNodeManager().Cordon(tc.Ctx, nodeName)
 }
 
 // UncordonNode marks a node as schedulable.
 func (tc *TestContext) UncordonNode(nodeName string) error {
-	return tc.Nodes.Uncordon(tc.Ctx, nodeName)
+	return tc.newNodeManager().Uncordon(tc.Ctx, nodeName)
 }
 
 // CordonNodes cordons multiple nodes.
@@ -252,22 +253,22 @@ func (tc *TestContext) UncordonNodes(nodes []string) {
 
 // GetWorkerNodes retrieves the names of all worker nodes in the cluster.
 func (tc *TestContext) GetWorkerNodes() ([]string, error) {
-	return tc.Nodes.GetWorkerNodes(tc.Ctx)
+	return tc.newNodeManager().GetWorkerNodes(tc.Ctx)
 }
 
 // ScalePCS scales a PodCliqueSet to the specified replica count.
 func (tc *TestContext) ScalePCS(name string, replicas int) error {
-	return tc.Workloads.ScalePCS(tc.Ctx, tc.Namespace, name, replicas)
+	return tc.newWorkloadManager().ScalePCS(tc.Ctx, tc.Namespace, name, replicas)
 }
 
 // ScalePCSG scales a PodCliqueScalingGroup to the specified replica count.
 func (tc *TestContext) ScalePCSG(name string, replicas int) error {
-	return tc.Workloads.ScalePCSG(tc.Ctx, tc.Namespace, name, replicas, tc.Timeout, tc.Interval)
+	return tc.newWorkloadManager().ScalePCSG(tc.Ctx, tc.Namespace, name, replicas, tc.Timeout, tc.Interval)
 }
 
 // ApplyYAMLFile applies a YAML file to the cluster.
 func (tc *TestContext) ApplyYAMLFile(yamlPath string) ([]k8s.AppliedResource, error) {
-	return tc.Resources.ApplyYAMLFile(tc.Ctx, yamlPath, tc.Namespace)
+	return tc.newResourceManager().ApplyYAMLFile(tc.Ctx, yamlPath, tc.Namespace)
 }
 
 // DeployAndVerifyWorkload applies a workload YAML and waits for the expected pod count.
