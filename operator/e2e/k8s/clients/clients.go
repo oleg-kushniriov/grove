@@ -16,7 +16,7 @@
 // limitations under the License.
 // */
 
-package k8s
+package clients
 
 import (
 	"fmt"

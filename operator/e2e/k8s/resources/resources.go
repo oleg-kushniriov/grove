@@ -16,7 +16,7 @@
 // limitations under the License.
 // */
 
-package k8s
+package resources
 
 import (
 	"context"
@@ -26,6 +26,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -48,13 +49,13 @@ type AppliedResource struct {
 
 // ResourceManager provides Kubernetes resource operations using pre-created clients.
 type ResourceManager struct {
-	clients *Clients
+	clients *clients.Clients
 	logger  *utils.Logger
 }
 
 // NewResourceManager creates a ResourceManager bound to the given clients.
-func NewResourceManager(clients *Clients, logger *utils.Logger) *ResourceManager {
-	return &ResourceManager{clients: clients, logger: logger}
+func NewResourceManager(c *clients.Clients, logger *utils.Logger) *ResourceManager {
+	return &ResourceManager{clients: c, logger: logger}
 }
 
 // ApplyYAMLFile applies a YAML file containing Kubernetes resources.

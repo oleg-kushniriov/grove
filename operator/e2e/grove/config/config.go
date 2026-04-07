@@ -16,14 +16,14 @@
 // limitations under the License.
 // */
 
-package grove
+package config
 
 import (
 	"context"
 	"fmt"
 
 	configv1alpha1 "github.com/ai-dynamo/grove/operator/api/config/v1alpha1"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -45,11 +45,11 @@ type GroveMetadata struct {
 
 // OperatorConfig provides access to Grove operator configuration using pre-created clients.
 type OperatorConfig struct {
-	clients *k8s.Clients
+	clients *clients.Clients
 }
 
 // NewOperatorConfig creates an OperatorConfig bound to the given clients.
-func NewOperatorConfig(clients *k8s.Clients) *OperatorConfig {
+func NewOperatorConfig(clients *clients.Clients) *OperatorConfig {
 	return &OperatorConfig{clients: clients}
 }
 

@@ -16,17 +16,20 @@
 // limitations under the License.
 // */
 
-package grove
+package workload
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
-	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	grovecorev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
 	groveclient "github.com/ai-dynamo/grove/operator/client/clientset/versioned"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
+	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -48,18 +51,18 @@ var (
 
 // WorkloadManager provides Grove workload operations using pre-created Kubernetes clients.
 type WorkloadManager struct {
-	clients   *k8s.Clients
-	resources *k8s.ResourceManager
-	pods      *k8s.PodManager
+	clients   *clients.Clients
+	resources *resources.ResourceManager
+	pods      *pods.PodManager
 	logger    *utils.Logger
 }
 
 // NewWorkloadManager creates a WorkloadManager bound to the given clients.
-func NewWorkloadManager(clients *k8s.Clients, logger *utils.Logger) *WorkloadManager {
+func NewWorkloadManager(clients *clients.Clients, logger *utils.Logger) *WorkloadManager {
 	return &WorkloadManager{
 		clients:   clients,
-		resources: k8s.NewResourceManager(clients, logger),
-		pods:      k8s.NewPodManager(clients, logger),
+		resources: resources.NewResourceManager(clients, logger),
+		pods:      pods.NewPodManager(clients, logger),
 		logger:    logger,
 	}
 }

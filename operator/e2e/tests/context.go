@@ -26,8 +26,12 @@ import (
 	"time"
 
 	"github.com/ai-dynamo/grove/operator/e2e/diagnostics"
-	"github.com/ai-dynamo/grove/operator/e2e/grove"
+	"github.com/ai-dynamo/grove/operator/e2e/grove/workload"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/nodes"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,7 +44,7 @@ type TestContext struct {
 	Ctx context.Context
 
 	// Shared clients (created once per test run, goroutine-safe)
-	Clients *k8s.Clients
+	Clients *clients.Clients
 
 	// Per-suite configuration
 	Namespace string
@@ -74,7 +78,7 @@ func WithWorkload(wc *WorkloadConfig) TestOption {
 }
 
 // NewTestContext creates a TestContext from shared clients with optional configuration.
-func NewTestContext(t *testing.T, ctx context.Context, clients *k8s.Clients, opts ...TestOption) *TestContext {
+func NewTestContext(t *testing.T, ctx context.Context, clients *clients.Clients, opts ...TestOption) *TestContext {
 	tc := &TestContext{
 		T:         t,
 		Ctx:       ctx,
@@ -132,23 +136,23 @@ func PrepareTest(ctx context.Context, t *testing.T, requiredWorkerNodes int, opt
 // --- Convenience methods that delegate to managers with suite-scoped defaults ---
 
 // newPodManager creates a PodManager for internal use by convenience methods.
-func (tc *TestContext) newPodManager() *k8s.PodManager {
-	return k8s.NewPodManager(tc.Clients, Logger)
+func (tc *TestContext) newPodManager() *pods.PodManager {
+	return pods.NewPodManager(tc.Clients, Logger)
 }
 
 // newNodeManager creates a NodeManager for internal use by convenience methods.
-func (tc *TestContext) newNodeManager() *k8s.NodeManager {
-	return k8s.NewNodeManager(tc.Clients, Logger)
+func (tc *TestContext) newNodeManager() *nodes.NodeManager {
+	return nodes.NewNodeManager(tc.Clients, Logger)
 }
 
 // newResourceManager creates a ResourceManager for internal use by convenience methods.
-func (tc *TestContext) newResourceManager() *k8s.ResourceManager {
-	return k8s.NewResourceManager(tc.Clients, Logger)
+func (tc *TestContext) newResourceManager() *resources.ResourceManager {
+	return resources.NewResourceManager(tc.Clients, Logger)
 }
 
 // newWorkloadManager creates a WorkloadManager for internal use by convenience methods.
-func (tc *TestContext) newWorkloadManager() *grove.WorkloadManager {
-	return grove.NewWorkloadManager(tc.Clients, Logger)
+func (tc *TestContext) newWorkloadManager() *workload.WorkloadManager {
+	return workload.NewWorkloadManager(tc.Clients, Logger)
 }
 
 // getLabelSelector returns the label selector for the current workload.
@@ -187,11 +191,11 @@ func (tc *TestContext) WaitForPodCountAndPhases(expectedTotal, expectedRunning, 
 // WaitForPodPhases waits for pods to reach specific running and pending counts.
 func (tc *TestContext) WaitForPodPhases(expectedRunning, expectedPending int) error {
 	return tc.PollForCondition(func() (bool, error) {
-		pods, err := tc.ListPods()
+		podList, err := tc.ListPods()
 		if err != nil {
 			return false, err
 		}
-		count := k8s.CountPodsByPhase(pods)
+		count := pods.CountPodsByPhase(podList)
 		return count.Running == expectedRunning && count.Pending == expectedPending, nil
 	})
 }
@@ -200,11 +204,11 @@ func (tc *TestContext) WaitForPodPhases(expectedRunning, expectedPending int) er
 func (tc *TestContext) WaitForReadyPods(expectedReady int) error {
 	tc.T.Helper()
 	return tc.PollForCondition(func() (bool, error) {
-		pods, err := tc.ListPods()
+		podList, err := tc.ListPods()
 		if err != nil {
 			return false, err
 		}
-		return k8s.CountReady(pods) == expectedReady, nil
+		return pods.CountReady(podList) == expectedReady, nil
 	})
 }
 
@@ -212,11 +216,11 @@ func (tc *TestContext) WaitForReadyPods(expectedReady int) error {
 func (tc *TestContext) WaitForRunningPods(expectedRunning int) error {
 	tc.T.Helper()
 	return tc.PollForCondition(func() (bool, error) {
-		pods, err := tc.ListPods()
+		podList, err := tc.ListPods()
 		if err != nil {
 			return false, err
 		}
-		count := k8s.CountPodsByPhase(pods)
+		count := pods.CountPodsByPhase(podList)
 		return count.Running == expectedRunning, nil
 	})
 }
@@ -267,7 +271,7 @@ func (tc *TestContext) ScalePCSG(name string, replicas int) error {
 }
 
 // ApplyYAMLFile applies a YAML file to the cluster.
-func (tc *TestContext) ApplyYAMLFile(yamlPath string) ([]k8s.AppliedResource, error) {
+func (tc *TestContext) ApplyYAMLFile(yamlPath string) ([]resources.AppliedResource, error) {
 	return tc.newResourceManager().ApplyYAMLFile(tc.Ctx, yamlPath, tc.Namespace)
 }
 
@@ -412,11 +416,11 @@ func (tc *TestContext) WaitForPodConditions(expectedTotalPods, expectedPending i
 	var lastTotal, lastRunning, lastPending int
 
 	err := tc.PollForCondition(func() (bool, error) {
-		pods, err := tc.ListPods()
+		podList, err := tc.ListPods()
 		if err != nil {
 			return false, err
 		}
-		count := k8s.CountPodsByPhase(pods)
+		count := pods.CountPodsByPhase(podList)
 		lastTotal = count.Total
 		lastRunning = count.Running
 		lastPending = count.Pending

@@ -16,13 +16,15 @@
 // limitations under the License.
 // */
 
-package k8s
+package pods
 
 import (
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	kubeutils "github.com/ai-dynamo/grove/operator/internal/utils/kubernetes"
 	v1 "k8s.io/api/core/v1"
@@ -41,13 +43,13 @@ type PodPhaseCount struct {
 
 // PodManager provides pod operations using pre-created Kubernetes clients.
 type PodManager struct {
-	clients *Clients
+	clients *clients.Clients
 	logger  *utils.Logger
 }
 
 // NewPodManager creates a PodManager bound to the given clients.
-func NewPodManager(clients *Clients, logger *utils.Logger) *PodManager {
-	return &PodManager{clients: clients, logger: logger}
+func NewPodManager(c *clients.Clients, logger *utils.Logger) *PodManager {
+	return &PodManager{clients: c, logger: logger}
 }
 
 // List lists pods in a namespace with an optional label selector.
@@ -123,7 +125,7 @@ func (pm *PodManager) WaitForReadyInNamespace(ctx context.Context, namespace str
 // Returns the pod list once the expected count is reached.
 func (pm *PodManager) WaitForCount(ctx context.Context, namespace, labelSelector string, expectedCount int, timeout, interval time.Duration) (*v1.PodList, error) {
 	var pods *v1.PodList
-	err := PollForCondition(ctx, timeout, interval, func() (bool, error) {
+	err := k8s.PollForCondition(ctx, timeout, interval, func() (bool, error) {
 		var err error
 		pods, err = pm.List(ctx, namespace, labelSelector)
 		if err != nil {
@@ -140,7 +142,7 @@ func (pm *PodManager) WaitForCount(ctx context.Context, namespace, labelSelector
 // WaitForCountAndPhases waits for pods to reach specific total count and phase counts.
 // Pass -1 for any count you want to skip verification.
 func (pm *PodManager) WaitForCountAndPhases(ctx context.Context, namespace, labelSelector string, expectedTotal, expectedRunning, expectedPending int, timeout, interval time.Duration) error {
-	return PollForCondition(ctx, timeout, interval, func() (bool, error) {
+	return k8s.PollForCondition(ctx, timeout, interval, func() (bool, error) {
 		pods, err := pm.List(ctx, namespace, labelSelector)
 		if err != nil {
 			return false, err

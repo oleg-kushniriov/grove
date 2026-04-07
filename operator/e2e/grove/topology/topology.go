@@ -16,7 +16,7 @@
 // limitations under the License.
 // */
 
-package grove
+package topology
 
 import (
 	"context"
@@ -26,6 +26,7 @@ import (
 	kaitopologyv1alpha1 "github.com/NVIDIA/KAI-scheduler/pkg/apis/kai/v1alpha1"
 	corev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,12 +55,12 @@ type PCSGTypeConfig struct {
 
 // TopologyVerifier provides Grove topology verification using pre-created Kubernetes clients.
 type TopologyVerifier struct {
-	clients *k8s.Clients
+	clients *clients.Clients
 	logger  *utils.Logger
 }
 
 // NewTopologyVerifier creates a TopologyVerifier bound to the given clients.
-func NewTopologyVerifier(clients *k8s.Clients, logger *utils.Logger) *TopologyVerifier {
+func NewTopologyVerifier(clients *clients.Clients, logger *utils.Logger) *TopologyVerifier {
 	return &TopologyVerifier{clients: clients, logger: logger}
 }
 

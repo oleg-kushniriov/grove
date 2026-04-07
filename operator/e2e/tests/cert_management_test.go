@@ -34,8 +34,9 @@ import (
 	"time"
 
 	configv1alpha1 "github.com/ai-dynamo/grove/operator/api/config/v1alpha1"
-	"github.com/ai-dynamo/grove/operator/e2e/grove"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/grove/workload"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -175,7 +176,7 @@ func Test_CM1_CertManagementRoundTrip(t *testing.T) {
 	defer cleanup()
 
 	// Create Issuer and Certificate using pre-created clients from prepareTest
-	resources := k8s.NewResourceManager(tc.Clients, Logger)
+	resources := resources.NewResourceManager(tc.Clients, Logger)
 
 	if _, err := resources.ApplyYAMLData(ctx, []byte(certManagerIssuerYAML), ""); err != nil {
 		t.Fatalf("Failed to apply ClusterIssuer: %v", err)
@@ -241,7 +242,7 @@ func deletePodCliqueSetAndWait(t *testing.T, ctx context.Context, tc *TestContex
 	t.Helper()
 
 	Logger.Debugf("Deleting PodCliqueSet %s/%s", namespace, name)
-	workloads := grove.NewWorkloadManager(tc.Clients, Logger)
+	workloads := workload.NewWorkloadManager(tc.Clients, Logger)
 	if err := workloads.DeletePCSAndWait(ctx, namespace, name, DefaultPollTimeout, DefaultPollInterval); err != nil {
 		t.Fatalf("Failed to delete PodCliqueSet %s: %v", name, err)
 	}
@@ -332,7 +333,7 @@ func installCertManager(t *testing.T, ctx context.Context, tc *TestContext) {
 	}
 
 	// Ensure cert-manager is actually up and running before returning
-	if err := k8s.NewPodManager(tc.Clients, Logger).WaitForReadyInNamespace(ctx, cmConfig.Namespace, 3, DefaultPollTimeout, DefaultPollInterval); err != nil {
+	if err := pods.NewPodManager(tc.Clients, Logger).WaitForReadyInNamespace(ctx, cmConfig.Namespace, 3, DefaultPollTimeout, DefaultPollInterval); err != nil {
 		t.Fatalf("cert-manager pods failed to become ready: %v", err)
 	}
 }

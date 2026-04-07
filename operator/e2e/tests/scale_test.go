@@ -28,15 +28,16 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/ai-dynamo/grove/operator/e2e/diagnostics"
-	"github.com/ai-dynamo/grove/operator/e2e/grove"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/grove/config"
+	"github.com/ai-dynamo/grove/operator/e2e/grove/workload"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
 	"github.com/ai-dynamo/grove/operator/e2e/utils/measurement"
 	"github.com/ai-dynamo/grove/operator/e2e/utils/measurement/condition"
 	"github.com/ai-dynamo/grove/operator/e2e/utils/measurement/exporter"
 )
 
 // toOperatorMetadata converts GroveMetadata to the measurement package type.
-func toOperatorMetadata(m *grove.GroveMetadata) *measurement.OperatorMetadata {
+func toOperatorMetadata(m *config.GroveMetadata) *measurement.OperatorMetadata {
 	return &measurement.OperatorMetadata{
 		GroveImage: m.Image,
 		K8sClient: &measurement.K8sClientConfig{
@@ -76,7 +77,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 	)
 	defer cleanup()
 
-	metadata, err := grove.NewOperatorConfig(tc.Clients).ReadGroveMetadata(ctx)
+	metadata, err := config.NewOperatorConfig(tc.Clients).ReadGroveMetadata(ctx)
 	if err != nil {
 		t.Fatalf("failed to read grove metadata: %v", err)
 	}
@@ -96,7 +97,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 	tracker.AddPhase(measurement.PhaseDefinition{
 		Name: "deploy",
 		ActionFn: func(ctx context.Context) error {
-			_, err := k8s.NewResourceManager(tc.Clients, Logger).ApplyYAMLFile(ctx, tc.Workload.YAMLPath, tc.Namespace)
+			_, err := resources.NewResourceManager(tc.Clients, Logger).ApplyYAMLFile(ctx, tc.Workload.YAMLPath, tc.Namespace)
 			return err
 		},
 		Milestones: []measurement.MilestoneDefinition{
@@ -133,7 +134,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 	tracker.AddPhase(measurement.PhaseDefinition{
 		Name: "delete",
 		ActionFn: func(ctx context.Context) error {
-			return grove.NewWorkloadManager(tc.Clients, Logger).DeletePCS(ctx, tc.Namespace, tc.Workload.Name)
+			return workload.NewWorkloadManager(tc.Clients, Logger).DeletePCS(ctx, tc.Namespace, tc.Workload.Name)
 		},
 		Milestones: []measurement.MilestoneDefinition{
 			{

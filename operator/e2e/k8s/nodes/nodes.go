@@ -16,13 +16,15 @@
 // limitations under the License.
 // */
 
-package k8s
+package nodes
 
 import (
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -34,13 +36,13 @@ const defaultNodePollInterval = 2 * time.Second
 
 // NodeManager provides node operations using pre-created Kubernetes clients.
 type NodeManager struct {
-	clients *Clients
+	clients *clients.Clients
 	logger  *utils.Logger
 }
 
 // NewNodeManager creates a NodeManager bound to the given clients.
-func NewNodeManager(clients *Clients, logger *utils.Logger) *NodeManager {
-	return &NodeManager{clients: clients, logger: logger}
+func NewNodeManager(c *clients.Clients, logger *utils.Logger) *NodeManager {
+	return &NodeManager{clients: c, logger: logger}
 }
 
 // SetSchedulable sets a node to be schedulable or unschedulable (cordon/uncordon).
@@ -129,7 +131,7 @@ func IsReady(node *v1.Node) bool {
 // WaitAndGetReady waits for a specific node to become ready and returns it.
 func (nm *NodeManager) WaitAndGetReady(ctx context.Context, nodeName string, timeout time.Duration) (*v1.Node, error) {
 	var node *v1.Node
-	err := PollForCondition(ctx, timeout, defaultNodePollInterval, func() (bool, error) {
+	err := k8s.PollForCondition(ctx, timeout, defaultNodePollInterval, func() (bool, error) {
 		var err error
 		node, err = nm.clients.Clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 		if err != nil {

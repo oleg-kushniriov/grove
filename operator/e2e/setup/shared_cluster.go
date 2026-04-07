@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/ai-dynamo/grove/operator/api/common"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	"github.com/ai-dynamo/grove/operator/internal/utils/ioutil"
 	"github.com/docker/docker/api/types/image"
@@ -98,7 +98,7 @@ type SharedClusterManager struct {
 	restConfig    *rest.Config
 	dynamicClient dynamic.Interface
 	crClient      client.Client
-	clients       *k8s.Clients // All clients bundled together, created once during setup
+	clients       *clients.Clients // All clients bundled together, created once during setup
 	cleanup       func()
 	logger        *utils.Logger
 	isSetup       bool
@@ -190,7 +190,7 @@ func (scm *SharedClusterManager) connectToCluster(ctx context.Context, testImage
 	scm.crClient = crClient
 
 	// Create bundled clients (includes REST mapper, created once for all tests)
-	clients, err := k8s.NewClients(restConfig)
+	clients, err := clients.NewClients(restConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create bundled k8s clients: %w", err)
 	}
@@ -556,7 +556,7 @@ func (scm *SharedClusterManager) GetClients() (*kubernetes.Clientset, *rest.Conf
 // GetAllClients returns the bundled Clients struct containing all Kubernetes clients
 // including the REST mapper. These clients are created once during cluster setup
 // and shared across all tests.
-func (scm *SharedClusterManager) GetAllClients() *k8s.Clients {
+func (scm *SharedClusterManager) GetAllClients() *clients.Clients {
 	return scm.clients
 }
 

@@ -30,7 +30,7 @@ import (
 	"time"
 
 	grovecorev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
 	tests "github.com/ai-dynamo/grove/operator/e2e/tests"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	"github.com/ai-dynamo/grove/operator/internal/mnnvl"
@@ -104,7 +104,7 @@ func init() {
 // requireClusterConfig returns the cached cluster MNNVL configuration, detecting it on first call.
 // This function is safe to call from multiple tests - detection only happens once.
 // If detection fails, the test is marked as fatal.
-func requireClusterConfig(t *testing.T, ctx context.Context, clients *k8s.Clients) *clusterMNNVLConfig {
+func requireClusterConfig(t *testing.T, ctx context.Context, clients *clients.Clients) *clusterMNNVLConfig {
 	t.Helper()
 
 	configOnce.Do(func() {
@@ -123,7 +123,7 @@ func requireClusterConfig(t *testing.T, ctx context.Context, clients *k8s.Client
 
 // detectClusterConfig detects the MNNVL configuration from the cluster.
 // It checks both the operator ConfigMap and the presence of the ComputeDomain CRD.
-func detectClusterConfig(ctx context.Context, clients *k8s.Clients) (*clusterMNNVLConfig, error) {
+func detectClusterConfig(ctx context.Context, clients *clients.Clients) (*clusterMNNVLConfig, error) {
 	config := &clusterMNNVLConfig{}
 
 	// Detect if MNNVL feature is enabled in operator config

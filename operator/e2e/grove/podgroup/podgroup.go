@@ -16,7 +16,7 @@
 // limitations under the License.
 // */
 
-package grove
+package podgroup
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 	kaischedulingv2alpha2 "github.com/NVIDIA/KAI-scheduler/pkg/apis/scheduling/v2alpha2"
 	nameutils "github.com/ai-dynamo/grove/operator/api/common"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -67,12 +68,12 @@ type ScaledPCSGConfig struct {
 
 // PodGroupVerifier provides KAI PodGroup verification using pre-created Kubernetes clients.
 type PodGroupVerifier struct {
-	clients *k8s.Clients
+	clients *clients.Clients
 	logger  *utils.Logger
 }
 
 // NewPodGroupVerifier creates a PodGroupVerifier bound to the given clients.
-func NewPodGroupVerifier(clients *k8s.Clients, logger *utils.Logger) *PodGroupVerifier {
+func NewPodGroupVerifier(clients *clients.Clients, logger *utils.Logger) *PodGroupVerifier {
 	return &PodGroupVerifier{clients: clients, logger: logger}
 }
 
