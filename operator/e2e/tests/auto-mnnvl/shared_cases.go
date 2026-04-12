@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"testing"
 
-	tests "github.com/ai-dynamo/grove/operator/e2e/tests"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/internal/mnnvl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +34,7 @@ import (
 // annotations, or resourceClaims are produced for a GPU-capable PCS. It is shared
 // across test suites because the expected behavior is identical regardless of why
 // the feature is inactive.
-func testNoMNNVLArtifactsWhenDisabled(t *testing.T, tc *tests.TestContext) {
+func testNoMNNVLArtifactsWhenDisabled(t *testing.T, tc *testctx.TestContext) {
 	pcsName := "test-no-cd-created"
 
 	// Create a PCS with GPU requirement

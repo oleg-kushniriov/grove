@@ -38,6 +38,7 @@ import (
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -161,8 +162,8 @@ func Test_CM1_CertManagementRoundTrip(t *testing.T) {
 	workloadPath := filepath.Join(filepath.Dir(currentFile), "../yaml/workload1.yaml")
 
 	Logger.Info("1. Initialize Grove with auto-provision mode (10 nodes for workload)")
-	tc, cleanup := PrepareTest(ctx, t, 10,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 10,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "workload1",
 			YAMLPath:     workloadPath,
 			Namespace:    "default",
@@ -238,12 +239,12 @@ func Test_CM1_CertManagementRoundTrip(t *testing.T) {
 	Logger.Info("🎉 Certificate management round-trip test completed successfully")
 }
 
-func deletePodCliqueSetAndWait(t *testing.T, ctx context.Context, tc *TestContext, name, namespace string) {
+func deletePodCliqueSetAndWait(t *testing.T, ctx context.Context, tc *testctx.TestContext, name, namespace string) {
 	t.Helper()
 
 	Logger.Debugf("Deleting PodCliqueSet %s/%s", namespace, name)
 	workloads := workload.NewWorkloadManager(tc.Clients, Logger)
-	if err := workloads.DeletePCSAndWait(ctx, namespace, name, DefaultPollTimeout, DefaultPollInterval); err != nil {
+	if err := workloads.DeletePCSAndWait(ctx, namespace, name, testctx.DefaultPollTimeout, testctx.DefaultPollInterval); err != nil {
 		t.Fatalf("Failed to delete PodCliqueSet %s: %v", name, err)
 	}
 	Logger.Debugf("PodCliqueSet %s/%s deleted", namespace, name)
@@ -252,7 +253,7 @@ func deletePodCliqueSetAndWait(t *testing.T, ctx context.Context, tc *TestContex
 func waitForSecret(t *testing.T, ctx context.Context, clientset kubernetes.Interface, name string, shouldExist bool) {
 	t.Helper()
 
-	err := utils.PollForCondition(ctx, DefaultPollTimeout, DefaultPollInterval, func() (bool, error) {
+	err := utils.PollForCondition(ctx, testctx.DefaultPollTimeout, testctx.DefaultPollInterval, func() (bool, error) {
 		_, err := clientset.CoreV1().Secrets("grove-system").Get(ctx, name, metav1.GetOptions{})
 		if shouldExist {
 			return err == nil, nil
@@ -272,7 +273,7 @@ func waitForSecretManagedByCertManager(t *testing.T, ctx context.Context, client
 	t.Helper()
 
 	Logger.Debugf("Waiting for secret %s to be managed by cert-manager...", name)
-	err := utils.PollForCondition(ctx, DefaultPollTimeout, DefaultPollInterval, func() (bool, error) {
+	err := utils.PollForCondition(ctx, testctx.DefaultPollTimeout, testctx.DefaultPollInterval, func() (bool, error) {
 		secret, err := clientset.CoreV1().Secrets("grove-system").Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil // Secret doesn't exist yet, keep waiting
@@ -310,7 +311,7 @@ func deleteCertManagerResources(ctx context.Context, clientset kubernetes.Interf
 	}
 }
 
-func installCertManager(t *testing.T, ctx context.Context, tc *TestContext) {
+func installCertManager(t *testing.T, ctx context.Context, tc *testctx.TestContext) {
 	t.Helper()
 
 	cmConfig := &setup.HelmInstallConfig{
@@ -333,7 +334,7 @@ func installCertManager(t *testing.T, ctx context.Context, tc *TestContext) {
 	}
 
 	// Ensure cert-manager is actually up and running before returning
-	if err := pods.NewPodManager(tc.Clients, Logger).WaitForReadyInNamespace(ctx, cmConfig.Namespace, 3, DefaultPollTimeout, DefaultPollInterval); err != nil {
+	if err := pods.NewPodManager(tc.Clients, Logger).WaitForReadyInNamespace(ctx, cmConfig.Namespace, 3, testctx.DefaultPollTimeout, testctx.DefaultPollInterval); err != nil {
 		t.Fatalf("cert-manager pods failed to become ready: %v", err)
 	}
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/ai-dynamo/grove/operator/e2e/grove/config"
 	"github.com/ai-dynamo/grove/operator/e2e/grove/workload"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/e2e/utils/measurement"
 	"github.com/ai-dynamo/grove/operator/e2e/utils/measurement/condition"
 	"github.com/ai-dynamo/grove/operator/e2e/utils/measurement/exporter"
@@ -65,10 +66,10 @@ func Test_ScaleTest_1000(t *testing.T) {
 	defer cancel()
 
 	Logger.Info("preparing test cluster with 100 worker nodes")
-	tc, cleanup := PrepareTest(ctx, t, 100,
-		WithTimeout(scaleTestTimeout),
-		WithInterval(scaleTestPollInterval),
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 100,
+		testctx.WithTimeout(scaleTestTimeout),
+		testctx.WithInterval(scaleTestPollInterval),
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "scale-test-1000",
 			YAMLPath:     "../yaml/scale-test-1000.yaml",
 			Namespace:    "default",

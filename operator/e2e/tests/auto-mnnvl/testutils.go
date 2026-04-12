@@ -31,7 +31,7 @@ import (
 
 	grovecorev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/clients"
-	tests "github.com/ai-dynamo/grove/operator/e2e/tests"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	"github.com/ai-dynamo/grove/operator/internal/mnnvl"
 	testutils "github.com/ai-dynamo/grove/operator/test/utils"
@@ -337,17 +337,17 @@ func buildComprehensivePCS(name string, replicas int) *grovecorev1alpha1.PodCliq
 }
 
 // deletePCS deletes a PCS by name
-func deletePCS(tc *tests.TestContext, name string) {
+func deletePCS(tc *testctx.TestContext, name string) {
 	_ = utils.DeletePodCliqueSet(tc.Ctx, tc.Clients.DynamicClient, tc.Namespace, name)
 }
 
 // scalePCS scales a PCS to the specified number of replicas
-func scalePCS(tc *tests.TestContext, name string, replicas int) error {
+func scalePCS(tc *testctx.TestContext, name string, replicas int) error {
 	return utils.ScalePodCliqueSetWithClient(tc.Ctx, tc.Clients.DynamicClient, tc.Namespace, name, replicas)
 }
 
 // waitForComputeDomainCount waits for the specified number of ComputeDomains for a PCS
-func waitForComputeDomainCount(tc *tests.TestContext, pcsName string, expectedCount int) error {
+func waitForComputeDomainCount(tc *testctx.TestContext, pcsName string, expectedCount int) error {
 	return utils.PollForCondition(tc.Ctx, defaultPollTimeout, defaultPollInterval, func() (bool, error) {
 		list, err := tc.Clients.DynamicClient.Resource(computeDomainGVR).Namespace(tc.Namespace).List(tc.Ctx, metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("app.kubernetes.io/part-of=%s", pcsName),
@@ -360,11 +360,11 @@ func waitForComputeDomainCount(tc *tests.TestContext, pcsName string, expectedCo
 }
 
 // waitForPCSG waits for a PCSG to exist and returns it
-func waitForPCSG(tc *tests.TestContext, pcsgName string) (*grovecorev1alpha1.PodCliqueScalingGroup, error) {
+func waitForPCSG(tc *testctx.TestContext, pcsgName string) (*grovecorev1alpha1.PodCliqueScalingGroup, error) {
 	return utils.WaitForPodCliqueScalingGroup(tc.Ctx, tc.Clients.GroveClient, tc.Namespace, pcsgName, defaultPollTimeout, defaultPollInterval)
 }
 
 // waitForPCLQ waits for a PCLQ to exist and returns it
-func waitForPCLQ(tc *tests.TestContext, pclqName string) (*grovecorev1alpha1.PodClique, error) {
+func waitForPCLQ(tc *testctx.TestContext, pclqName string) (*grovecorev1alpha1.PodClique, error) {
 	return utils.WaitForPodClique(tc.Ctx, tc.Clients.GroveClient, tc.Namespace, pclqName, defaultPollTimeout, defaultPollInterval)
 }

@@ -21,12 +21,10 @@ package tests
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
-	"testing"
 	"time"
 
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
 )
@@ -54,14 +52,10 @@ func init() {
 
 	// increase Logger verbosity for debugging
 	Logger = utils.NewTestLogger(utils.InfoLevel)
+	testctx.Logger = Logger
 }
 
 const (
-	// DefaultPollTimeout is the timeout for most polling conditions
-	DefaultPollTimeout = 4 * time.Minute
-	// DefaultPollInterval is the interval for most polling conditions
-	DefaultPollInterval = 5 * time.Second
-
 	// scaleTestPollInterval defines the interval at which polling occurs during scale tests, set to 2 seconds.
 	scaleTestPollInterval = 2 * time.Second
 	// scaleTestTimeout defines the timeout for scale tests, set to 15 minutes.
@@ -71,37 +65,6 @@ const (
 	LabelPodClique             = "grove.io/podclique"
 	LabelPodCliqueScalingGroup = "grove.io/podcliquescalinggroup"
 )
-
-// assertPodsOnDistinctNodes asserts that the pods are scheduled on distinct nodes and fails the test if not.
-func assertPodsOnDistinctNodes(t *testing.T, pods []v1.Pod) {
-	t.Helper()
-
-	assignedNodes := make(map[string]string, len(pods))
-	for _, pod := range pods {
-		nodeName := pod.Spec.NodeName
-		if nodeName == "" {
-			t.Fatalf("Pod %s is running but has no assigned node", pod.Name)
-		}
-		if existingPod, exists := assignedNodes[nodeName]; exists {
-			t.Fatalf("Pods %s and %s are scheduled on the same node %s; expected unique nodes", existingPod, pod.Name, nodeName)
-		}
-		assignedNodes[nodeName] = pod.Name
-	}
-}
-
-// WorkloadConfig defines configuration for deploying and verifying a workload.
-type WorkloadConfig struct {
-	Name         string
-	YAMLPath     string
-	Namespace    string
-	ExpectedPods int
-}
-
-// GetLabelSelector returns the label selector calculated from the workload name.
-// The label selector follows the pattern: "app.kubernetes.io/part-of=<name>"
-func (w WorkloadConfig) GetLabelSelector() string {
-	return fmt.Sprintf("app.kubernetes.io/part-of=%s", w.Name)
-}
 
 // ConvertTypedToUnstructured converts a typed object to an unstructured object
 func ConvertTypedToUnstructured(typed interface{}) (*unstructured.Unstructured, error) {

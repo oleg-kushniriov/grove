@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	apicommon "github.com/ai-dynamo/grove/operator/api/common"
-	tests "github.com/ai-dynamo/grove/operator/e2e/tests"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/internal/mnnvl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +41,7 @@ func Test_AutoMNNVL_SupportedAndEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	// Prepare cluster and get clients (0 = no specific worker node requirement)
-	tc, cleanup := tests.PrepareTest(ctx, t, 0)
+	tc, cleanup := testctx.PrepareTest(ctx, t, 0)
 	defer cleanup()
 
 	// Detect and validate cluster configuration
@@ -51,7 +51,7 @@ func Test_AutoMNNVL_SupportedAndEnabled(t *testing.T) {
 	// Define all subtests
 	subtests := []struct {
 		description string
-		fn          func(*testing.T, *tests.TestContext)
+		fn          func(*testing.T, *testctx.TestContext)
 	}{
 		{"PCS gets auto-mnnvl annotation", testPCSGetsAutoAnnotation},
 		{"ComputeDomain created per replica with correct metadata and spec", testComputeDomainCreatedPerReplica},
@@ -74,7 +74,7 @@ func Test_AutoMNNVL_SupportedAndEnabled(t *testing.T) {
 // testPCSGetsAutoAnnotation verifies that the mutating webhook adds
 // grove.io/auto-mnnvl: enabled annotation to PCS with GPU requirements,
 // and does NOT add it to PCS without GPU requirements.
-func testPCSGetsAutoAnnotation(t *testing.T, tc *tests.TestContext) {
+func testPCSGetsAutoAnnotation(t *testing.T, tc *testctx.TestContext) {
 	t.Run("GPU PCS gets annotation", func(t *testing.T) {
 		pcsName := "test-gpu-annotation"
 
@@ -115,7 +115,7 @@ func testPCSGetsAutoAnnotation(t *testing.T, tc *tests.TestContext) {
 // testComputeDomainCreatedPerReplica verifies that one ComputeDomain is created
 // for each PCS replica, with correct metadata (finalizer, ownerRef, labels) and
 // spec (numNodes=0, RCT reference).
-func testComputeDomainCreatedPerReplica(t *testing.T, tc *tests.TestContext) {
+func testComputeDomainCreatedPerReplica(t *testing.T, tc *testctx.TestContext) {
 	pcsName := "test-cd-per-replica"
 	replicas := 2
 
@@ -150,7 +150,7 @@ func testComputeDomainCreatedPerReplica(t *testing.T, tc *tests.TestContext) {
 
 // testResourceClaimInjection is a comprehensive test that verifies resourceClaim injection
 // and annotation propagation across multiple clique types and scaling groups.
-func testResourceClaimInjection(t *testing.T, tc *tests.TestContext) {
+func testResourceClaimInjection(t *testing.T, tc *testctx.TestContext) {
 	pcsName := "inj-test"
 
 	// Create the comprehensive PCS
@@ -263,7 +263,7 @@ func testResourceClaimInjection(t *testing.T, tc *tests.TestContext) {
 
 // testScaleOutAndIn verifies that scaling out creates new ComputeDomains with correct content,
 // and scaling in deletes excess ComputeDomains.
-func testScaleOutAndIn(t *testing.T, tc *tests.TestContext) {
+func testScaleOutAndIn(t *testing.T, tc *testctx.TestContext) {
 	pcsName := "test-scale-cd"
 
 	// Create a PCS with 1 replica
@@ -310,7 +310,7 @@ func testScaleOutAndIn(t *testing.T, tc *tests.TestContext) {
 }
 
 // testPCSDeletionCascadesToCD verifies that deleting PCS also deletes ComputeDomains.
-func testPCSDeletionCascadesToCD(t *testing.T, tc *tests.TestContext) {
+func testPCSDeletionCascadesToCD(t *testing.T, tc *testctx.TestContext) {
 	pcsName := "test-pcs-deletion-cascade"
 
 	// Create a PCS with GPU requirement
@@ -331,7 +331,7 @@ func testPCSDeletionCascadesToCD(t *testing.T, tc *tests.TestContext) {
 }
 
 // testExplicitDisabledAnnotationHonored verifies that auto-mnnvl: disabled prevents injection.
-func testExplicitDisabledAnnotationHonored(t *testing.T, tc *tests.TestContext) {
+func testExplicitDisabledAnnotationHonored(t *testing.T, tc *testctx.TestContext) {
 	pcsName := "test-explicit-disabled"
 
 	// Create a PCS with GPU requirement but explicit disabled annotation
@@ -369,7 +369,7 @@ func testExplicitDisabledAnnotationHonored(t *testing.T, tc *tests.TestContext) 
 }
 
 // testInvalidAnnotationRejected verifies that invalid annotation values are rejected.
-func testInvalidAnnotationRejected(t *testing.T, tc *tests.TestContext) {
+func testInvalidAnnotationRejected(t *testing.T, tc *testctx.TestContext) {
 	pcsName := "test-invalid-annotation"
 
 	// Create a PCS with invalid annotation value
@@ -386,7 +386,7 @@ func testInvalidAnnotationRejected(t *testing.T, tc *tests.TestContext) {
 }
 
 // testAnnotationImmutability verifies that the auto-mnnvl annotation cannot be changed after creation.
-func testAnnotationImmutability(t *testing.T, tc *tests.TestContext) {
+func testAnnotationImmutability(t *testing.T, tc *testctx.TestContext) {
 	pcsName := "test-annotation-immutable"
 
 	// Create a GPU PCS (will get auto-annotated with "enabled")
@@ -461,7 +461,7 @@ func requireNoContainerMNNVLClaim(t *testing.T, container *corev1.Container) {
 }
 
 // verifyComputeDomainContent verifies that a ComputeDomain exists with correct metadata and spec.
-func verifyComputeDomainContent(t *testing.T, tc *tests.TestContext, pcsName string, replicaIndex int, pcsUID types.UID) {
+func verifyComputeDomainContent(t *testing.T, tc *testctx.TestContext, pcsName string, replicaIndex int, pcsUID types.UID) {
 	t.Helper()
 
 	cdName := fmt.Sprintf("%s-%d", pcsName, replicaIndex)

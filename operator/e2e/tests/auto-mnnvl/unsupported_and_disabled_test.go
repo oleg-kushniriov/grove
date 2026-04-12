@@ -22,7 +22,7 @@ import (
 	"context"
 	"testing"
 
-	tests "github.com/ai-dynamo/grove/operator/e2e/tests"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 )
 
 // Test_AutoMNNVL_UnsupportedAndDisabled is the test suite for when Auto-MNNVL feature is disabled
@@ -32,7 +32,7 @@ func Test_AutoMNNVL_UnsupportedAndDisabled(t *testing.T) {
 	ctx := context.Background()
 
 	// Prepare cluster and get clients (0 = no specific worker node requirement)
-	tc, cleanup := tests.PrepareTest(ctx, t, 0)
+	tc, cleanup := testctx.PrepareTest(ctx, t, 0)
 	defer cleanup()
 
 	// Detect and validate cluster configuration
@@ -42,7 +42,7 @@ func Test_AutoMNNVL_UnsupportedAndDisabled(t *testing.T) {
 	// Define all subtests
 	subtests := []struct {
 		description string
-		fn          func(*testing.T, *tests.TestContext)
+		fn          func(*testing.T, *testctx.TestContext)
 	}{
 		{"no MNNVL artifacts created", testNoMNNVLArtifactsWhenDisabled},
 	}

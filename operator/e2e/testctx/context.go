@@ -16,7 +16,7 @@
 // limitations under the License.
 // */
 
-package tests
+package testctx
 
 import (
 	"context"
@@ -33,9 +33,34 @@ import (
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
+	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// Logger is set by the tests package init() to share the singleton logger.
+var Logger *utils.Logger
+
+const (
+	// DefaultPollTimeout is the timeout for most polling conditions
+	DefaultPollTimeout = 4 * time.Minute
+	// DefaultPollInterval is the interval for most polling conditions
+	DefaultPollInterval = 5 * time.Second
+)
+
+// WorkloadConfig defines configuration for deploying and verifying a workload.
+type WorkloadConfig struct {
+	Name         string
+	YAMLPath     string
+	Namespace    string
+	ExpectedPods int
+}
+
+// GetLabelSelector returns the label selector calculated from the workload name.
+// The label selector follows the pattern: "app.kubernetes.io/part-of=<name>"
+func (w WorkloadConfig) GetLabelSelector() string {
+	return fmt.Sprintf("app.kubernetes.io/part-of=%s", w.Name)
+}
 
 // TestContext is the primary per-test helper struct.
 // Clients are created once and shared; domain managers are created by tests on demand.
@@ -50,7 +75,7 @@ type TestContext struct {
 	Namespace string
 	Timeout   time.Duration
 	Interval  time.Duration
-	Workload *WorkloadConfig
+	Workload  *WorkloadConfig
 }
 
 // TestOption configures a TestContext.
@@ -361,6 +386,23 @@ func (tc *TestContext) VerifyPodsArePendingWithUnschedulableEvents(allPodsMustBe
 
 		return podsWithUnschedulableEvent == pendingCount, nil
 	})
+}
+
+// assertPodsOnDistinctNodes asserts that the pods are scheduled on distinct nodes and fails the test if not.
+func assertPodsOnDistinctNodes(t *testing.T, pods []v1.Pod) {
+	t.Helper()
+
+	assignedNodes := make(map[string]string, len(pods))
+	for _, pod := range pods {
+		nodeName := pod.Spec.NodeName
+		if nodeName == "" {
+			t.Fatalf("Pod %s is running but has no assigned node", pod.Name)
+		}
+		if existingPod, exists := assignedNodes[nodeName]; exists {
+			t.Fatalf("Pods %s and %s are scheduled on the same node %s; expected unique nodes", existingPod, pod.Name, nodeName)
+		}
+		assignedNodes[nodeName] = pod.Name
+	}
 }
 
 // ListPodsAndAssertDistinctNodes lists pods and asserts they are on distinct nodes.

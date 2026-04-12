@@ -22,7 +22,7 @@ import (
 	"context"
 	"testing"
 
-	tests "github.com/ai-dynamo/grove/operator/e2e/tests"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/internal/mnnvl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ func Test_AutoMNNVL_SupportedButDisabled(t *testing.T) {
 	ctx := context.Background()
 
 	// Prepare cluster and get clients (0 = no specific worker node requirement)
-	tc, cleanup := tests.PrepareTest(ctx, t, 0)
+	tc, cleanup := testctx.PrepareTest(ctx, t, 0)
 	defer cleanup()
 
 	// Detect and validate cluster configuration
@@ -46,7 +46,7 @@ func Test_AutoMNNVL_SupportedButDisabled(t *testing.T) {
 	// Define all subtests
 	subtests := []struct {
 		description string
-		fn          func(*testing.T, *tests.TestContext)
+		fn          func(*testing.T, *testctx.TestContext)
 	}{
 		{"no auto annotation added", testNoAutoAnnotationAdded},
 		{"explicit enabled annotation rejected", testExplicitEnabledAnnotationRejected},
@@ -63,7 +63,7 @@ func Test_AutoMNNVL_SupportedButDisabled(t *testing.T) {
 
 // testNoAutoAnnotationAdded verifies that the webhook doesn't add the auto-mnnvl
 // annotation when the feature is disabled.
-func testNoAutoAnnotationAdded(t *testing.T, tc *tests.TestContext) {
+func testNoAutoAnnotationAdded(t *testing.T, tc *testctx.TestContext) {
 	pcsName := "test-no-auto-annotation"
 
 	// Create a PCS with GPU requirement (no annotation)
@@ -84,7 +84,7 @@ func testNoAutoAnnotationAdded(t *testing.T, tc *tests.TestContext) {
 
 // testExplicitEnabledAnnotationRejected verifies that explicitly setting
 // auto-mnnvl: enabled is rejected when the feature is disabled globally.
-func testExplicitEnabledAnnotationRejected(t *testing.T, tc *tests.TestContext) {
+func testExplicitEnabledAnnotationRejected(t *testing.T, tc *testctx.TestContext) {
 	pcsName := "test-explicit-enabled-rejected"
 
 	// Create a PCS with explicit enabled annotation

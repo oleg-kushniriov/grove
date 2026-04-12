@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-dynamo/grove/operator/e2e/tests"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 )
 
 // testConfig holds configuration for update strategy test setup (both RollingUpdate and OnDelete).
@@ -67,7 +67,7 @@ type testConfig struct {
 //   - tc: TestContext for the test
 //   - cleanup: Function that should be deferred by the caller (stops tracker and cleans up cluster)
 //   - tracker: Started update tracker - caller can use tracker.GetEvents() after stopping
-func setupTest(t *testing.T, cfg testConfig) (*tests.TestContext, func(), *updateTracker) {
+func setupTest(t *testing.T, cfg testConfig) (*testctx.TestContext, func(), *updateTracker) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -85,9 +85,9 @@ func setupTest(t *testing.T, cfg testConfig) (*tests.TestContext, func(), *updat
 	}
 
 	// Step 1+2: Prepare test cluster and create TestContext
-	tc, clusterCleanup := tests.PrepareTest(ctx, t, cfg.workerNodes,
-		tests.WithNamespace(cfg.namespace),
-		tests.WithWorkload(&tests.WorkloadConfig{
+	tc, clusterCleanup := testctx.PrepareTest(ctx, t, cfg.workerNodes,
+		testctx.WithNamespace(cfg.namespace),
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         cfg.workloadName,
 			YAMLPath:     cfg.workloadYAML,
 			Namespace:    cfg.namespace,

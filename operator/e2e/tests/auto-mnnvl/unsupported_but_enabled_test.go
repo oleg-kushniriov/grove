@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	tests "github.com/ai-dynamo/grove/operator/e2e/tests"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +38,7 @@ func Test_AutoMNNVL_UnsupportedButEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	// Prepare cluster and get clients (0 = no specific worker node requirement)
-	tc, cleanup := tests.PrepareTest(ctx, t, 0)
+	tc, cleanup := testctx.PrepareTest(ctx, t, 0)
 	defer cleanup()
 
 	// Detect and validate cluster configuration
@@ -48,7 +48,7 @@ func Test_AutoMNNVL_UnsupportedButEnabled(t *testing.T) {
 	// Define all subtests
 	subtests := []struct {
 		description string
-		fn          func(*testing.T, *tests.TestContext)
+		fn          func(*testing.T, *testctx.TestContext)
 	}{
 		{"operator exits when CD CRD is missing", testOperatorExitsWithoutCDCRD},
 	}
@@ -63,7 +63,7 @@ func Test_AutoMNNVL_UnsupportedButEnabled(t *testing.T) {
 
 // testOperatorExitsWithoutCDCRD verifies that the operator fails preflight
 // when MNNVL is enabled but the ComputeDomain CRD is missing.
-func testOperatorExitsWithoutCDCRD(t *testing.T, tc *tests.TestContext) {
+func testOperatorExitsWithoutCDCRD(t *testing.T, tc *testctx.TestContext) {
 	pod, err := waitForFailedOperatorPod(tc)
 	require.NoError(t, err, "Failed to find grove-operator pod")
 
@@ -105,7 +105,7 @@ func testOperatorExitsWithoutCDCRD(t *testing.T, tc *tests.TestContext) {
 // The old pod may have RestartCount > 0 from cert-refresh restarts, so we
 // filter by !Ready to ensure we return the actually-crashing pod whose logs
 // contain the preflight failure.
-func waitForFailedOperatorPod(tc *tests.TestContext) (*corev1.Pod, error) {
+func waitForFailedOperatorPod(tc *testctx.TestContext) (*corev1.Pod, error) {
 	var operatorPod *corev1.Pod
 	err := utils.PollForCondition(tc.Ctx, defaultPollTimeout, defaultPollInterval, func() (bool, error) {
 		pods, listErr := tc.Clients.Clientset.CoreV1().Pods(groveOperatorNamespace).List(tc.Ctx, metav1.ListOptions{

@@ -41,6 +41,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -59,9 +60,9 @@ func Test_SO1_InorderStartupOrderWithFullReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 10-node Grove cluster")
 	totalPods := 10 // pc-a: 2 replicas, pc-b: 1*2 (scaling group), pc-c: 3*2 (scaling group) = 2+2+6=10
-	tc, cleanup := PrepareTest(ctx, t, totalPods,
-		WithTimeout(5*time.Minute),
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, totalPods,
+		testctx.WithTimeout(5*time.Minute),
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "workload3",
 			YAMLPath:     "../yaml/workload3.yaml",
 			Namespace:    "default",
@@ -108,9 +109,9 @@ func Test_SO2_InorderStartupOrderWithMinReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 10-node Grove cluster")
 	totalPods := 10 // pc-a: 2 replicas, pc-b: 1*2 (scaling group), pc-c: 3*2 (scaling group) = 2+2+6=10
-	tc, cleanup := PrepareTest(ctx, t, totalPods,
-		WithTimeout(5*time.Minute),
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, totalPods,
+		testctx.WithTimeout(5*time.Minute),
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "workload4",
 			YAMLPath:     "../yaml/workload4.yaml",
 			Namespace:    "default",
@@ -168,9 +169,9 @@ func Test_SO3_ExplicitStartupOrderWithFullReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 10-node Grove cluster")
 	totalPods := 10 // pc-a: 2 replicas, pc-b: 1*2 (scaling group), pc-c: 3*2 (scaling group) = 2+2+6=10
-	tc, cleanup := PrepareTest(ctx, t, totalPods,
-		WithTimeout(5*time.Minute),
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, totalPods,
+		testctx.WithTimeout(5*time.Minute),
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "workload5",
 			YAMLPath:     "../yaml/workload5.yaml",
 			Namespace:    "default",
@@ -218,9 +219,9 @@ func Test_SO4_ExplicitStartupOrderWithMinReplicas(t *testing.T) {
 
 	Logger.Info("1. Initialize a 10-node Grove cluster")
 	totalPods := 10 // pc-a: 2 replicas, pc-b: 1*2 (scaling group), pc-c: 3*2 (scaling group) = 2+2+6=10
-	tc, cleanup := PrepareTest(ctx, t, totalPods,
-		WithTimeout(5*time.Minute),
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, totalPods,
+		testctx.WithTimeout(5*time.Minute),
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "workload6",
 			YAMLPath:     "../yaml/workload6.yaml",
 			Namespace:    "default",
@@ -354,7 +355,7 @@ type ScalingGroupOrderSpec struct {
 }
 
 // verifyScalingGroupStartupOrder verifies startup ordering for tests with scaling groups and minAvailable.
-func verifyScalingGroupStartupOrder(t *testing.T, tc *TestContext, spec ScalingGroupOrderSpec) {
+func verifyScalingGroupStartupOrder(t *testing.T, tc *testctx.TestContext, spec ScalingGroupOrderSpec) {
 	t.Helper()
 
 	// Fetch the latest pod state
@@ -430,7 +431,7 @@ func verifyScalingGroupStartupOrder(t *testing.T, tc *TestContext, spec ScalingG
 }
 
 // verifyPodCliqueStartupOrder combines pod fetching, filtering, count verification, and startup order verification.
-func verifyPodCliqueStartupOrder(t *testing.T, tc *TestContext,
+func verifyPodCliqueStartupOrder(t *testing.T, tc *testctx.TestContext,
 	beforeClique string, beforeCount int,
 	afterClique string, afterCount int) {
 	t.Helper()
@@ -515,7 +516,7 @@ func getPodsByCliquePattern(pods []v1.Pod, pattern string) []v1.Pod {
 }
 
 // debugPodState logs detailed state information for all pods in the namespace.
-func (tc *TestContext) debugPodState() {
+func debugPodState(tc *testctx.TestContext) {
 	pods, err := tc.ListPods()
 	if err != nil {
 		Logger.Errorf("Failed to list pods for debugging: %v", err)

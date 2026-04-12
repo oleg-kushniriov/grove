@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	tests "github.com/ai-dynamo/grove/operator/e2e/tests"
 	"github.com/ai-dynamo/grove/operator/e2e/utils"
 	"k8s.io/apimachinery/pkg/watch"
@@ -168,8 +169,8 @@ func Test_RU10_RollingUpdateInsufficientResources(t *testing.T) {
 
 	tests.Logger.Info("1. Initialize a 10-node Grove cluster")
 	tests.Logger.Info("2. Deploy workload WL1, and verify 10 newly created pods")
-	tc, cleanup := tests.PrepareTest(ctx, t, 10,
-		tests.WithWorkload(&tests.WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 10,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "workload1",
 			YAMLPath:     "../../yaml/workload1.yaml",
 			Namespace:    "default",
@@ -703,8 +704,8 @@ func Test_RU18_RollingUpdateWithPodCliqueScaleOutDuringUpdate(t *testing.T) {
 
 	tests.Logger.Info("1. Initialize a 24-node Grove cluster")
 	tests.Logger.Info("2. Deploy workload WL1 with 2 replicas, and verify 20 newly created pods")
-	tc, cleanup := tests.PrepareTest(ctx, t, 24,
-		tests.WithWorkload(&tests.WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 24,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "workload1",
 			YAMLPath:     "../../yaml/workload1.yaml",
 			Namespace:    "default",

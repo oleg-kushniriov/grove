@@ -29,13 +29,14 @@ import (
 	"github.com/ai-dynamo/grove/operator/e2e/grove/podgroup"
 	"github.com/ai-dynamo/grove/operator/e2e/grove/topology"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // DeployWorkloadAndGetPods deploys workload, waits for pods to be ready, and returns the pod list
-func (tc *TestContext) DeployWorkloadAndGetPods(expectedPods int) ([]v1.Pod, error) {
+func DeployWorkloadAndGetPods(tc *testctx.TestContext, expectedPods int) ([]v1.Pod, error) {
 	if _, err := tc.DeployAndVerifyWorkload(); err != nil {
 		return nil, fmt.Errorf("failed to deploy workload: %w", err)
 	}
@@ -55,7 +56,7 @@ func (tc *TestContext) DeployWorkloadAndGetPods(expectedPods int) ([]v1.Pod, err
 }
 
 // GetPodGroupOrFail retrieves a PodGroup for the specified PCS replica or fails the test.
-func GetPodGroupOrFail(t *testing.T, tc *TestContext, podGroupVerifier *podgroup.PodGroupVerifier, pcsReplica int) *kaischedulingv2alpha2.PodGroup {
+func GetPodGroupOrFail(t *testing.T, tc *testctx.TestContext, podGroupVerifier *podgroup.PodGroupVerifier, pcsReplica int) *kaischedulingv2alpha2.PodGroup {
 	podGroup, err := podGroupVerifier.GetPodGroupForBasePodGangReplica(
 		tc.Ctx, tc.Namespace, tc.Workload.Name,
 		pcsReplica, tc.Timeout, tc.Interval,
@@ -74,7 +75,7 @@ func GetPodGroupOrFail(t *testing.T, tc *TestContext, podGroupVerifier *podgroup
 func Test_TAS1_TopologyInfrastructure(t *testing.T) {
 	ctx := context.Background()
 
-	tc, cleanup := PrepareTest(ctx, t, 0)
+	tc, cleanup := testctx.PrepareTest(ctx, t, 0)
 	defer cleanup()
 	topologyVerifier := topology.NewTopologyVerifier(tc.Clients, Logger)
 
@@ -147,8 +148,8 @@ func Test_TAS2_MultipleCliquesWithDifferentConstraints(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 7 // worker-rack: 3 pods, worker-block: 4 pods
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-indep-clq",
 			YAMLPath:     "../yaml/tas-indep-clq.yaml",
 			Namespace:    "default",
@@ -160,7 +161,7 @@ func Test_TAS2_MultipleCliquesWithDifferentConstraints(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS2: multiple cliques with different constraints)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -205,8 +206,8 @@ func Test_TAS3_PCSOnlyConstraint(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4 // 2 PCSG workers + 2 router standalone
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-sl-pcs-only",
 			YAMLPath:     "../yaml/tas-sl-pcs-only.yaml",
 			Namespace:    "default",
@@ -218,7 +219,7 @@ func Test_TAS3_PCSOnlyConstraint(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS3: PCS-only constraint)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -258,8 +259,8 @@ func Test_TAS4_PCSGOnlyConstraint(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4 // 2 PCSG workers + 2 router standalone
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-sl-pcsg-only",
 			YAMLPath:     "../yaml/tas-sl-pcsg-only.yaml",
 			Namespace:    "default",
@@ -271,7 +272,7 @@ func Test_TAS4_PCSGOnlyConstraint(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS4: PCSG-only constraint)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -312,8 +313,8 @@ func Test_TAS5_HostLevelConstraint(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 2
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-host-level",
 			YAMLPath:     "../yaml/tas-host-level.yaml",
 			Namespace:    "default",
@@ -325,7 +326,7 @@ func Test_TAS5_HostLevelConstraint(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS5: PCLQ-only host constraint)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -373,8 +374,8 @@ func Test_TAS6_StandalonePCLQOnlyPCSZoneConstraint(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-standalone-pclq",
 			YAMLPath:     "../yaml/tas-standalone-pclq-only-pcs-zone.yaml",
 			Namespace:    "default",
@@ -386,7 +387,7 @@ func Test_TAS6_StandalonePCLQOnlyPCSZoneConstraint(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS6: Standalone PCLQ with only PCS zone constraint)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -420,8 +421,8 @@ func Test_TAS7_NoTopologyConstraint(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4 // 2 PCSG replicas × 2 pods each
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-no-constraint",
 			YAMLPath:     "../yaml/tas-no-constraint.yaml",
 			Namespace:    "default",
@@ -432,7 +433,7 @@ func Test_TAS7_NoTopologyConstraint(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS7: No topology constraints)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -471,8 +472,8 @@ func Test_TAS8_FullHierarchyWithCascadingConstraints(t *testing.T) {
 
 	Logger.Info("1. Initialize an 8-node Grove cluster for topology testing")
 	expectedPods := 8 // 2 PCSG replicas × (prefill: 2 pods + decode: 2 pods)
-	tc, cleanup := PrepareTest(ctx, t, 8,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 8,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-hierarchy",
 			YAMLPath:     "../yaml/tas-hierarchy.yaml",
 			Namespace:    "default",
@@ -484,7 +485,7 @@ func Test_TAS8_FullHierarchyWithCascadingConstraints(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS8: full 3-level hierarchy with cascading constraints)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -547,8 +548,8 @@ func Test_TAS9_PCSPlusPCLQConstraint(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 2
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-pcs-pclq",
 			YAMLPath:     "../yaml/tas-pcs-pclq.yaml",
 			Namespace:    "default",
@@ -560,7 +561,7 @@ func Test_TAS9_PCSPlusPCLQConstraint(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS9: PCS block + PCLQ host constraint)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -596,8 +597,8 @@ func Test_TAS10_PCSGScalingWithTopologyConstraints(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 6 // 3 PCSG replicas × 2 pods each
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-pcsg-scale",
 			YAMLPath:     "../yaml/tas-pcsg-scale.yaml",
 			Namespace:    "default",
@@ -609,7 +610,7 @@ func Test_TAS10_PCSGScalingWithTopologyConstraints(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS10: PCSG scaling with topology constraints)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -675,8 +676,8 @@ func Test_TAS11_PCSGPlusPCLQNoParentConstraint(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4 // 2 PCSG replicas × 2 pods each
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-pcsg-pclq",
 			YAMLPath:     "../yaml/tas-pcsg-pclq.yaml",
 			Namespace:    "default",
@@ -688,7 +689,7 @@ func Test_TAS11_PCSGPlusPCLQNoParentConstraint(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS11: PCSG rack + PCLQ host, no PCS constraint)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -733,8 +734,8 @@ func Test_TAS12_LargeScalingRatio(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 20 // Base PodGang: 3 PCSG replicas × 2 pods (6) + Scaled: 7 PCSG replicas × 2 pods (14)
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-large-scale",
 			YAMLPath:     "../yaml/tas-large-scale.yaml",
 			Namespace:    "default",
@@ -746,7 +747,7 @@ func Test_TAS12_LargeScalingRatio(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS12: Large scaling ratio, replicas=10/minAvailable=3)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -826,8 +827,8 @@ func Test_TAS13_InsufficientNodesForConstraint(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 10
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-insuffic",
 			YAMLPath:     "../yaml/tas-insuffic.yaml",
 			Namespace:    "default",
@@ -884,8 +885,8 @@ func Test_TAS14_MultiReplicaWithRackConstraint(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 4
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-multirep",
 			YAMLPath:     "../yaml/tas-multirep.yaml",
 			Namespace:    "default",
@@ -897,7 +898,7 @@ func Test_TAS14_MultiReplicaWithRackConstraint(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS14: multi-replica with rack constraint)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -941,8 +942,8 @@ func Test_TAS15_DisaggregatedInferenceMultiplePCSGs(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for topology testing")
 	expectedPods := 10 // decoder (2×2) + prefill (2×2) + router (2)
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-pcs-multi-pcsg",
 			YAMLPath:     "../yaml/tas-pcs-multi-pcsg.yaml",
 			Namespace:    "default",
@@ -954,7 +955,7 @@ func Test_TAS15_DisaggregatedInferenceMultiplePCSGs(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS15: disaggregated inference with multiple PCSGs)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
@@ -1054,8 +1055,8 @@ func Test_TAS16_MultiReplicaPCSWithThreeLevelHierarchy(t *testing.T) {
 
 	Logger.Info("1. Initialize a 28-node Grove cluster for multi-replica PCS testing")
 	expectedPods := 20 // PCS replica 0: 10 pods + PCS replica 1: 10 pods
-	tc, cleanup := PrepareTest(ctx, t, 28,
-		WithWorkload(&WorkloadConfig{
+	tc, cleanup := testctx.PrepareTest(ctx, t, 28,
+		testctx.WithWorkload(&testctx.WorkloadConfig{
 			Name:         "tas-pcs-multi-pcsg",
 			YAMLPath:     "../yaml/tas-pcs-multi-pcsg-multi-replica.yaml",
 			Namespace:    "default",
@@ -1067,7 +1068,7 @@ func Test_TAS16_MultiReplicaPCSWithThreeLevelHierarchy(t *testing.T) {
 	podGroupVerifier := podgroup.NewPodGroupVerifier(tc.Clients, Logger)
 
 	Logger.Info("2. Deploy workload (TAS16: 2 PCS replicas with 3-level topology hierarchy)")
-	allPods, err := tc.DeployWorkloadAndGetPods(expectedPods)
+	allPods, err := DeployWorkloadAndGetPods(tc, expectedPods)
 	if err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}

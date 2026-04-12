@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-dynamo/grove/operator/e2e/tests"
+	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -52,7 +52,7 @@ func newUpdateTracker() *updateTracker {
 
 // start begins watching pod events and blocks until the watcher is ready.
 // Uses tc.Ctx, tc.Clients.Clientset, tc.Namespace, and tc.Workload.GetLabelSelector() for watch configuration.
-func (t *updateTracker) start(tc *tests.TestContext) error {
+func (t *updateTracker) start(tc *testctx.TestContext) error {
 	watcherCtx, cancel := context.WithCancel(tc.Ctx)
 	t.cancel = cancel
 
