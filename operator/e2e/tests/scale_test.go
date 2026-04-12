@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -107,7 +108,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 				Condition: &condition.PodsCreatedCondition{
 					Client:        tc.Clients.CRClient,
 					Namespace:     tc.Namespace,
-					LabelSelector: tc.getLabelSelector(),
+					LabelSelector: tc.GetLabelSelector(),
 					ExpectedCount: scaleTestExpectedPods,
 				},
 			},
@@ -116,7 +117,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 				Condition: &condition.PodsReadyCondition{
 					Client:        tc.Clients.CRClient,
 					Namespace:     tc.Namespace,
-					LabelSelector: tc.getLabelSelector(),
+					LabelSelector: tc.GetLabelSelector(),
 					ExpectedCount: scaleTestExpectedPods,
 				},
 			},
@@ -173,4 +174,14 @@ func exportResult(t *testing.T, result *measurement.TrackerResult, diagDir strin
 	if err := multi.Export(result); err != nil {
 		t.Fatalf("Failed to export results: %v", err)
 	}
+}
+
+// resolveOutputPath resolves the full output path for filename.
+// Uses diagDir if set; otherwise returns filename as-is (relative to cwd).
+// Writability is not checked — callers must handle create errors.
+func resolveOutputPath(filename, diagDir string) string {
+	if diagDir != "" {
+		return filepath.Join(diagDir, filename)
+	}
+	return filename
 }

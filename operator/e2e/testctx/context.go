@@ -179,8 +179,8 @@ func (tc *TestContext) newWorkloadManager() *workload.WorkloadManager {
 	return workload.NewWorkloadManager(tc.Clients, Logger)
 }
 
-// getLabelSelector returns the label selector for the current workload.
-func (tc *TestContext) getLabelSelector() string {
+// GetLabelSelector returns the label selector for the current workload.
+func (tc *TestContext) GetLabelSelector() string {
 	if tc.Workload == nil {
 		return ""
 	}
@@ -194,22 +194,22 @@ func (tc *TestContext) PollForCondition(condition func() (bool, error)) error {
 
 // ListPods lists pods matching the current workload's label selector.
 func (tc *TestContext) ListPods() (*v1.PodList, error) {
-	return tc.newPodManager().List(tc.Ctx, tc.Namespace, tc.getLabelSelector())
+	return tc.newPodManager().List(tc.Ctx, tc.Namespace, tc.GetLabelSelector())
 }
 
 // WaitForPods waits for the expected pod count to be ready.
 func (tc *TestContext) WaitForPods(expectedCount int) error {
-	return tc.newPodManager().WaitForReady(tc.Ctx, []string{tc.Namespace}, tc.getLabelSelector(), expectedCount, tc.Timeout, tc.Interval)
+	return tc.newPodManager().WaitForReady(tc.Ctx, []string{tc.Namespace}, tc.GetLabelSelector(), expectedCount, tc.Timeout, tc.Interval)
 }
 
 // WaitForPodCount waits for a specific number of pods and returns them.
 func (tc *TestContext) WaitForPodCount(expectedCount int) (*v1.PodList, error) {
-	return tc.newPodManager().WaitForCount(tc.Ctx, tc.Namespace, tc.getLabelSelector(), expectedCount, tc.Timeout, tc.Interval)
+	return tc.newPodManager().WaitForCount(tc.Ctx, tc.Namespace, tc.GetLabelSelector(), expectedCount, tc.Timeout, tc.Interval)
 }
 
 // WaitForPodCountAndPhases waits for pods to reach specific total count and phase counts.
 func (tc *TestContext) WaitForPodCountAndPhases(expectedTotal, expectedRunning, expectedPending int) error {
-	return tc.newPodManager().WaitForCountAndPhases(tc.Ctx, tc.Namespace, tc.getLabelSelector(), expectedTotal, expectedRunning, expectedPending, tc.Timeout, tc.Interval)
+	return tc.newPodManager().WaitForCountAndPhases(tc.Ctx, tc.Namespace, tc.GetLabelSelector(), expectedTotal, expectedRunning, expectedPending, tc.Timeout, tc.Interval)
 }
 
 // WaitForPodPhases waits for pods to reach specific running and pending counts.
