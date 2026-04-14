@@ -143,9 +143,11 @@ func PrepareTest(ctx context.Context, t *testing.T, requiredWorkerNodes int, opt
 		}
 
 		if err := sharedCluster.CleanupWorkloads(ctx); err != nil {
-			Logger.Error("================================================================================")
-			Logger.Error("=== CLEANUP FAILURE - COLLECTING DIAGNOSTICS ===")
-			Logger.Error("================================================================================")
+			if Logger != nil {
+				Logger.Error("================================================================================")
+				Logger.Error("=== CLEANUP FAILURE - COLLECTING DIAGNOSTICS ===")
+				Logger.Error("================================================================================")
+			}
 			diag.CollectAll(ctx, t.Name())
 			sharedCluster.MarkCleanupFailed(err)
 			t.Fatalf("Failed to cleanup workloads: %v. All subsequent tests will fail.", err)
