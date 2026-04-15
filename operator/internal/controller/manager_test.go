@@ -24,16 +24,20 @@ import (
 	"testing"
 	"time"
 
+	apicommon "github.com/ai-dynamo/grove/operator/api/common"
 	configv1alpha1 "github.com/ai-dynamo/grove/operator/api/config/v1alpha1"
 	groveclientscheme "github.com/ai-dynamo/grove/operator/internal/client"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	ctrlmanager "sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -313,6 +317,59 @@ func TestCreateManagerOptions(t *testing.T) {
 		assert.Empty(t, opts.PprofBindAddress)
 	})
 
+	// Test that cache is configured with a label selector for Pods
+	t.Run("pod cache filtered by managed-by label", func(t *testing.T) {
+		cfg := &configv1alpha1.OperatorConfiguration{
+			Server: configv1alpha1.ServerConfiguration{
+				Metrics: &configv1alpha1.Server{
+					BindAddress: "0.0.0.0",
+					Port:        8080,
+				},
+				HealthProbes: &configv1alpha1.Server{
+					BindAddress: "0.0.0.0",
+					Port:        8081,
+				},
+				Webhooks: configv1alpha1.WebhookServer{
+					Server: configv1alpha1.Server{
+						BindAddress: "0.0.0.0",
+						Port:        9443,
+					},
+					ServerCertDir: "/tmp/certs",
+				},
+			},
+			LeaderElection: configv1alpha1.LeaderElectionConfiguration{
+				Enabled:      false,
+				ResourceName: "operator-lock",
+				ResourceLock: "leases",
+			},
+		}
+
+		opts := createManagerOptions(cfg)
+
+		expectedSelector := labels.SelectorFromSet(labels.Set{
+			apicommon.LabelManagedByKey: apicommon.LabelManagedByValue,
+		})
+		require.NotNil(t, opts.Cache.ByObject)
+		podCacheOpts, found := opts.Cache.ByObject[&corev1.Pod{}]
+		// ByObject uses pointer keys; find the Pod entry by type
+		if !found {
+			for obj, byObj := range opts.Cache.ByObject {
+				if _, ok := obj.(*corev1.Pod); ok {
+					podCacheOpts = byObj
+					found = true
+					break
+				}
+			}
+		}
+		require.True(t, found, "expected cache.ByObject to contain an entry for *corev1.Pod")
+		assert.Equal(t, expectedSelector, podCacheOpts.Label)
+
+		// Verify the selector matches grove-managed pods and rejects others
+		assert.True(t, podCacheOpts.Label.Matches(labels.Set{apicommon.LabelManagedByKey: apicommon.LabelManagedByValue}))
+		assert.False(t, podCacheOpts.Label.Matches(labels.Set{}))
+		assert.False(t, podCacheOpts.Label.Matches(labels.Set{apicommon.LabelManagedByKey: "other"}))
+	})
+
 	// Test with no debugging configuration
 	t.Run("no debugging configuration", func(t *testing.T) {
 		cfg := &configv1alpha1.OperatorConfiguration{
@@ -468,8 +525,19 @@ func (w *mockWebhookServer) WebhookMux() *http.ServeMux {
 }
 
 // TestCreateManager tests the creation of a controller-runtime manager
-// with operator configuration.
+// with operator configuration. Requires a real API server because the
+// cache.ByObject config triggers API discovery during manager creation.
 func TestCreateManager(t *testing.T) {
+	testEnv := &envtest.Environment{}
+	envCfg, err := testEnv.Start()
+	if err != nil {
+		t.Skipf("Skipping test: kubebuilder test environment not available: %v", err)
+		return
+	}
+	defer func() {
+		require.NoError(t, testEnv.Stop())
+	}()
+
 	// Save original function and restore after test
 	originalGetConfigOrDie := ctrl.GetConfigOrDie
 	defer func() { ctrl.GetConfigOrDie = originalGetConfigOrDie }()
@@ -477,9 +545,7 @@ func TestCreateManager(t *testing.T) {
 	// Test with valid configuration
 	t.Run("valid configuration", func(t *testing.T) {
 		ctrl.GetConfigOrDie = func() *rest.Config {
-			return &rest.Config{
-				Host: "https://test-cluster:6443",
-			}
+			return rest.CopyConfig(envCfg)
 		}
 
 		cfg := &configv1alpha1.OperatorConfiguration{
