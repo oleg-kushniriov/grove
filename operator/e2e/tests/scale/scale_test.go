@@ -112,7 +112,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 		t.Fatalf("failed to create output directory: %v", err)
 	}
 
-	pprofOpt, pprofCleanup := setupPprofHook(ctx, tc.Clients, runID, outputDir, loadPyroscopeConfig())
+	pprofOpt, pprofCleanup := setupPprofHook(ctx, tc.K8s, runID, outputDir, loadPyroscopeConfig())
 	defer pprofCleanup()
 
 	opts := []measurement.TimelineOption{
