@@ -224,6 +224,12 @@ func (tc *TestContext) WaitForRunningPods(expectedRunning int) error {
 	return tc.newPodManager().WaitForPhases(tc.Ctx, tc.Namespace, tc.GetLabelSelector(), expectedRunning, -1, tc.Timeout, tc.Interval)
 }
 
+// WaitForFailedPod polls until a pod matching the label selector is not Ready and has terminated or restarted.
+func (tc *TestContext) WaitForFailedPod(namespace, labelSelector string) (*v1.Pod, error) {
+	tc.T.Helper()
+	return tc.newPodManager().WaitForFailedPod(tc.Ctx, namespace, labelSelector, tc.Timeout, tc.Interval)
+}
+
 // CordonNode marks a node as unschedulable.
 func (tc *TestContext) CordonNode(nodeName string) error {
 	return tc.newNodeManager().Cordon(tc.Ctx, nodeName)

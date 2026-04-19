@@ -23,11 +23,9 @@ import (
 	"testing"
 
 	"github.com/ai-dynamo/grove/operator/e2e/k8s"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
 	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
 )
 
 // Test_AutoMNNVL_UnsupportedButEnabled is the test suite for when Auto-MNNVL feature is enabled
@@ -63,7 +61,7 @@ func Test_AutoMNNVL_UnsupportedButEnabled(t *testing.T) {
 // testOperatorExitsWithoutCDCRD verifies that the operator fails preflight
 // when MNNVL is enabled but the ComputeDomain CRD is missing.
 func testOperatorExitsWithoutCDCRD(t *testing.T, tc *testctx.TestContext) {
-	pod, err := waitForFailedOperatorPod(tc)
+	pod, err := tc.WaitForFailedPod(groveOperatorNamespace, "app.kubernetes.io/name=grove-operator")
 	require.NoError(t, err, "Failed to find grove-operator pod")
 
 	hasTerminated := false
@@ -83,12 +81,4 @@ func testOperatorExitsWithoutCDCRD(t *testing.T, tc *testctx.TestContext) {
 		defaultPollTimeout, defaultPollInterval,
 		"MNNVL preflight check failed", "ComputeDomain CRD")
 	assert.NoError(t, err, "Operator logs should show preflight failure due to missing CRD")
-}
-
-// waitForFailedOperatorPod polls until it finds an operator pod that is NOT
-// Ready and has terminated or restarted.
-func waitForFailedOperatorPod(tc *testctx.TestContext) (*corev1.Pod, error) {
-	pm := pods.NewPodManager(tc.Clients, testctx.Logger)
-	return pm.WaitForFailedPod(tc.Ctx, groveOperatorNamespace, "app.kubernetes.io/name=grove-operator",
-		defaultPollTimeout, defaultPollInterval)
 }
