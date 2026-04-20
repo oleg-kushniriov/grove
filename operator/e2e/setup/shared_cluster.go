@@ -115,7 +115,7 @@ func listUnstructured(ctx context.Context, cl client.Client, rt resourceType, op
 // It connects to an existing cluster via kubeconfig and manages test lifecycle operations
 // like workload cleanup and node cordoning.
 type SharedClusterManager struct {
-	k8s           *k8s.K8s
+	k8s           *k8s.Client
 	cleanup       func()
 	logger        *log.Logger
 	isSetup       bool
@@ -515,8 +515,8 @@ func (scm *SharedClusterManager) listRemainingGroveManagedResources(ctx context.
 	}
 }
 
-// GetK8s returns the unified K8s client struct
-func (scm *SharedClusterManager) GetK8s() *k8s.K8s {
+// GetClient returns the unified K8s client struct
+func (scm *SharedClusterManager) GetClient() *k8s.Client {
 	return scm.k8s
 }
 

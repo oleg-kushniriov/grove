@@ -129,7 +129,7 @@ func Test_OD2_ManualDeletionCreatesUpdatedPod(t *testing.T) {
 	// Get PCLQ and verify UpdatedReplicas has increased
 	pclqName := fmt.Sprintf("%s-%d-%s", tc.Workload.Name, 0, "pc-a")
 	var pclq grovev1alpha1.PodClique
-	if err = tc.K8s.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pclqName}, &pclq); err != nil {
+	if err = tc.Client.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pclqName}, &pclq); err != nil {
 		t.Fatalf("Failed to get PodClique: %v", err)
 	}
 

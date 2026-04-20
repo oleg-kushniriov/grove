@@ -66,8 +66,8 @@ type TestContext struct {
 	T   *testing.T
 	Ctx context.Context
 
-	// Shared K8s client (created once per test run, goroutine-safe)
-	K8s *k8s.K8s
+	// Shared client (created once per test run, goroutine-safe)
+	Client *k8s.Client
 
 	// Per-suite configuration
 	Namespace string
@@ -100,11 +100,11 @@ func WithWorkload(wc *WorkloadConfig) TestOption {
 }
 
 // NewTestContext creates a TestContext from a K8s client with optional configuration.
-func NewTestContext(t *testing.T, ctx context.Context, k8sClient *k8s.K8s, opts ...TestOption) *TestContext {
+func NewTestContext(t *testing.T, ctx context.Context, k8sClient *k8s.Client, opts ...TestOption) *TestContext {
 	tc := &TestContext{
 		T:         t,
 		Ctx:       ctx,
-		K8s:       k8sClient,
+		Client:    k8sClient,
 		Namespace: "default",
 		Timeout:   DefaultPollTimeout,
 		Interval:  DefaultPollInterval,
@@ -126,7 +126,7 @@ func PrepareTest(ctx context.Context, t *testing.T, requiredWorkerNodes int, opt
 		t.Fatalf("Failed to prepare shared cluster: %v", err)
 	}
 
-	k8sClient := sharedCluster.GetK8s()
+	k8sClient := sharedCluster.GetClient()
 	tc := NewTestContext(t, ctx, k8sClient, opts...)
 
 	// Initialize diagnostics for cleanup
@@ -161,22 +161,22 @@ func PrepareTest(ctx context.Context, t *testing.T, requiredWorkerNodes int, opt
 
 // newPodManager creates a PodManager for internal use by convenience methods.
 func (tc *TestContext) newPodManager() *pods.PodManager {
-	return pods.NewPodManager(tc.K8s, Logger)
+	return pods.NewPodManager(tc.Client, Logger)
 }
 
 // newNodeManager creates a NodeManager for internal use by convenience methods.
 func (tc *TestContext) newNodeManager() *nodes.NodeManager {
-	return nodes.NewNodeManager(tc.K8s, Logger)
+	return nodes.NewNodeManager(tc.Client, Logger)
 }
 
 // newResourceManager creates a ResourceManager for internal use by convenience methods.
 func (tc *TestContext) newResourceManager() *resources.ResourceManager {
-	return resources.NewResourceManager(tc.K8s, Logger)
+	return resources.NewResourceManager(tc.Client, Logger)
 }
 
 // newWorkloadManager creates a WorkloadManager for internal use by convenience methods.
 func (tc *TestContext) newWorkloadManager() *workload.WorkloadManager {
-	return workload.NewWorkloadManager(tc.K8s, Logger)
+	return workload.NewWorkloadManager(tc.Client, Logger)
 }
 
 // GetLabelSelector returns the label selector for the current workload.

@@ -329,7 +329,7 @@ func Test_RS1_HierarchicalResourceSharing(t *testing.T) {
 	)
 	defer cleanup()
 
-	crClient := tc.K8s
+	crClient := tc.Client
 	rcLabelSelector := fmt.Sprintf("app.kubernetes.io/managed-by=grove-operator,app.kubernetes.io/part-of=%s,app.kubernetes.io/component=resource-claim", rsWorkloadName)
 	podSelector := fmt.Sprintf("app.kubernetes.io/part-of=%s", rsWorkloadName)
 
@@ -395,7 +395,7 @@ func Test_RS1_HierarchicalResourceSharing(t *testing.T) {
 		t.Fatalf("Failed to scale PCLQ: %v", err)
 	}
 	verifyRCState(t, tc, rcLabelSelector, 15, pclqScaleOutRCNames())
-	pods, err := pods.NewPodManager(tc.K8s, Logger).WaitForCount(ctx, rsNamespace, podSelector, 5, tc.Timeout, tc.Interval)
+	pods, err := pods.NewPodManager(tc.Client, Logger).WaitForCount(ctx, rsNamespace, podSelector, 5, tc.Timeout, tc.Interval)
 	if err != nil {
 		t.Fatalf("Expected 5 pods after PCLQ scale-out but timed out: %v", err)
 	}
@@ -449,7 +449,7 @@ func Test_RS1_HierarchicalResourceSharing(t *testing.T) {
 	verifyImmutabilityRejection(t, tc)
 
 	Logger.Info("16. Delete PCS and verify all ResourceClaims are garbage-collected")
-	wm := workload.NewWorkloadManager(tc.K8s, Logger)
+	wm := workload.NewWorkloadManager(tc.Client, Logger)
 	if err := wm.DeletePCSAndWait(ctx, tc.Namespace, rsWorkloadName, tc.Timeout, tc.Interval); err != nil {
 		t.Fatalf("Failed to delete PCS: %v", err)
 	}
@@ -463,19 +463,19 @@ func Test_RS1_HierarchicalResourceSharing(t *testing.T) {
 
 // scalePodClique scales a PodClique using the resource manager.
 func scalePodClique(tc *testctx.TestContext, name string, replicas int) error {
-	rm := resources.NewResourceManager(tc.K8s, Logger)
+	rm := resources.NewResourceManager(tc.Client, Logger)
 	return rm.ScaleCRD(tc.Ctx, podCliqueGVK, tc.Namespace, name, replicas)
 }
 
 // verifyRCState waits for the expected RC count and verifies exact RC names.
 func verifyRCState(t *testing.T, tc *testctx.TestContext, labelSelector string, expectedCount int, expectedNames []string) {
 	t.Helper()
-	err := k8sutils.WaitForResourceClaimCount(tc.Ctx, tc.K8s, tc.Namespace, labelSelector, expectedCount, tc.Timeout, tc.Interval)
+	err := k8sutils.WaitForResourceClaimCount(tc.Ctx, tc.Client, tc.Namespace, labelSelector, expectedCount, tc.Timeout, tc.Interval)
 	if err != nil {
 		t.Fatalf("Expected %d ResourceClaims but timed out: %v", expectedCount, err)
 	}
 
-	rcList, err := k8sutils.ListResourceClaims(tc.Ctx, tc.K8s, tc.Namespace, labelSelector)
+	rcList, err := k8sutils.ListResourceClaims(tc.Ctx, tc.Client, tc.Namespace, labelSelector)
 	if err != nil {
 		t.Fatalf("Failed to list ResourceClaims: %v", err)
 	}
@@ -493,7 +493,7 @@ func verifyRCState(t *testing.T, tc *testctx.TestContext, labelSelector string, 
 // verifyPodState waits for the expected pod count and verifies RC references in pod specs.
 func verifyPodState(t *testing.T, tc *testctx.TestContext, podSelector string, expectedCount int, expectedRefs map[string][]string) {
 	t.Helper()
-	pods, err := pods.NewPodManager(tc.K8s, Logger).WaitForCount(tc.Ctx, tc.Namespace, podSelector, expectedCount, tc.Timeout, tc.Interval)
+	pods, err := pods.NewPodManager(tc.Client, Logger).WaitForCount(tc.Ctx, tc.Namespace, podSelector, expectedCount, tc.Timeout, tc.Interval)
 	if err != nil {
 		t.Fatalf("Expected %d pods but timed out: %v", expectedCount, err)
 	}
@@ -570,7 +570,7 @@ func extractContainerClaimNames(container v1.Container) []string {
 
 func createCrossNamespaceRCT(t *testing.T, tc *testctx.TestContext) {
 	t.Helper()
-	crClient := tc.K8s
+	crClient := tc.Client
 
 	ns := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rs-shared"}}
 	if err := crClient.Create(tc.Ctx, ns); err != nil && !errors.IsAlreadyExists(err) {
@@ -670,7 +670,7 @@ func pcsScaleOutOwnerRefs() map[string]expectedOwner {
 
 func verifyOwnerReferences(t *testing.T, tc *testctx.TestContext, labelSelector string, expected map[string]expectedOwner) {
 	t.Helper()
-	rcList, err := k8sutils.ListResourceClaims(tc.Ctx, tc.K8s, tc.Namespace, labelSelector)
+	rcList, err := k8sutils.ListResourceClaims(tc.Ctx, tc.Client, tc.Namespace, labelSelector)
 	if err != nil {
 		t.Fatalf("Failed to list ResourceClaims for ownerRef check: %v", err)
 	}
@@ -742,7 +742,7 @@ func verifyMultiPodPerReplicaRefs(t *testing.T, allPods []v1.Pod, pclqLabel stri
 func verifyImmutabilityRejection(t *testing.T, tc *testctx.TestContext) {
 	t.Helper()
 	var pcs grovecorev1alpha1.PodCliqueSet
-	if err := tc.K8s.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: rsWorkloadName}, &pcs); err != nil {
+	if err := tc.Client.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: rsWorkloadName}, &pcs); err != nil {
 		t.Fatalf("Failed to get PCS for immutability test: %v", err)
 	}
 
@@ -755,7 +755,7 @@ func verifyImmutabilityRejection(t *testing.T, tc *testctx.TestContext) {
 		pcs.Spec.Template.ResourceSharing[0].Scope = "PerReplica"
 	}
 
-	err := tc.K8s.Update(tc.Ctx, &pcs)
+	err := tc.Client.Update(tc.Ctx, &pcs)
 	if err == nil {
 		t.Fatal("Expected webhook rejection for immutable resourceSharing change, but update succeeded")
 	}

@@ -103,7 +103,7 @@ func envOrDefault(key, def string) string {
 // setupPprofHook configures async pprof profile downloads after each tracker phase.
 // Returns a TimelineOption (nil when disabled) and a cleanup function.
 // Best-effort: never aborts the test — logs warnings on failure and returns noop.
-func setupPprofHook(ctx context.Context, cl *k8s.K8s, runID, diagDir string, cfg pyroscopeConfig) (measurement.TimelineOption, func()) {
+func setupPprofHook(ctx context.Context, cl *k8s.Client, runID, diagDir string, cfg pyroscopeConfig) (measurement.TimelineOption, func()) {
 	noop := func() {}
 
 	if cfg.Disabled {

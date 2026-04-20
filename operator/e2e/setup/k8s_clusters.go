@@ -100,7 +100,7 @@ func getRestConfig() (*rest.Config, error) {
 // 3. Deletes the not ready node from Kubernetes
 // 4. Finds and restarts the corresponding Docker container (node names match container names exactly)
 // 5. The restarted container will rejoin the cluster as a new node
-func StartNodeMonitoring(ctx context.Context, k8sClient *k8s.K8s, logger *log.Logger) func() {
+func StartNodeMonitoring(ctx context.Context, k8sClient *k8s.Client, logger *log.Logger) func() {
 	logger.Debug("🔍 Starting node monitoring for not ready nodes...")
 
 	// Create a context that can be cancelled to stop the monitoring
@@ -131,7 +131,7 @@ func StartNodeMonitoring(ctx context.Context, k8sClient *k8s.K8s, logger *log.Lo
 }
 
 // checkAndReplaceNotReadyNodes checks for nodes that are not ready and replaces them
-func checkAndReplaceNotReadyNodes(ctx context.Context, k8sClient *k8s.K8s, logger *log.Logger) error {
+func checkAndReplaceNotReadyNodes(ctx context.Context, k8sClient *k8s.Client, logger *log.Logger) error {
 	// List all nodes
 	var nodeList v1.NodeList
 	if err := k8sClient.List(ctx, &nodeList); err != nil {
@@ -163,7 +163,7 @@ func checkAndReplaceNotReadyNodes(ctx context.Context, k8sClient *k8s.K8s, logge
 }
 
 // replaceNotReadyNode handles the process of replacing a not ready node
-func replaceNotReadyNode(ctx context.Context, node *v1.Node, k8sClient *k8s.K8s, logger *log.Logger) error {
+func replaceNotReadyNode(ctx context.Context, node *v1.Node, k8sClient *k8s.Client, logger *log.Logger) error {
 	nodeName := node.Name
 	originalNodeLabels := node.Labels
 
@@ -246,7 +246,7 @@ func restartNodeContainer(ctx context.Context, nodeName string, logger *log.Logg
 }
 
 // reapplyNodeLabels reapplies the original labels to a replaced node
-func reapplyNodeLabels(ctx context.Context, k8sClient *k8s.K8s, node *v1.Node, labels map[string]string, logger *log.Logger) error {
+func reapplyNodeLabels(ctx context.Context, k8sClient *k8s.Client, node *v1.Node, labels map[string]string, logger *log.Logger) error {
 	patchBytes, err := json.Marshal(map[string]interface{}{
 		"metadata": map[string]interface{}{
 			"labels": labels,

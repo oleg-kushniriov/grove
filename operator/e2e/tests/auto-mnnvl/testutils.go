@@ -108,7 +108,7 @@ func init() {
 // requireClusterConfig returns the cached cluster MNNVL configuration, detecting it on first call.
 // This function is safe to call from multiple tests - detection only happens once.
 // If detection fails, the test is marked as fatal.
-func requireClusterConfig(t *testing.T, ctx context.Context, k8sClient *k8s.K8s) *clusterMNNVLConfig {
+func requireClusterConfig(t *testing.T, ctx context.Context, k8sClient *k8s.Client) *clusterMNNVLConfig {
 	t.Helper()
 
 	configOnce.Do(func() {
@@ -127,7 +127,7 @@ func requireClusterConfig(t *testing.T, ctx context.Context, k8sClient *k8s.K8s)
 
 // detectClusterConfig detects the MNNVL configuration from the cluster.
 // It checks both the operator ConfigMap and the presence of the ComputeDomain CRD.
-func detectClusterConfig(ctx context.Context, k8sClient *k8s.K8s) (*clusterMNNVLConfig, error) {
+func detectClusterConfig(ctx context.Context, k8sClient *k8s.Client) (*clusterMNNVLConfig, error) {
 	config := &clusterMNNVLConfig{}
 
 	// Detect if MNNVL feature is enabled in operator config
@@ -148,7 +148,7 @@ func detectClusterConfig(ctx context.Context, k8sClient *k8s.K8s) (*clusterMNNVL
 }
 
 // detectAutoMNNVLEnabled checks if autoMNNVLEnabled is true in the operator ConfigMap
-func detectAutoMNNVLEnabled(ctx context.Context, k8sClient *k8s.K8s) (bool, error) {
+func detectAutoMNNVLEnabled(ctx context.Context, k8sClient *k8s.Client) (bool, error) {
 	// List ConfigMaps in grove-system namespace to find the operator config
 	var configMapList corev1.ConfigMapList
 	if err := k8sClient.List(ctx, &configMapList, client.InNamespace(groveOperatorNamespace)); err != nil {
@@ -345,12 +345,12 @@ func deletePCS(tc *testctx.TestContext, name string) {
 	pcs := &grovecorev1alpha1.PodCliqueSet{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: tc.Namespace},
 	}
-	_ = tc.K8s.Delete(tc.Ctx, pcs)
+	_ = tc.Client.Delete(tc.Ctx, pcs)
 }
 
 // scalePCS scales a PCS to the specified number of replicas
 func scalePCS(tc *testctx.TestContext, name string, replicas int) error {
-	return workload.ScalePodCliqueSetWithClient(tc.Ctx, tc.K8s, tc.Namespace, name, replicas)
+	return workload.ScalePodCliqueSetWithClient(tc.Ctx, tc.Client, tc.Namespace, name, replicas)
 }
 
 // waitForComputeDomainCount waits for the specified number of ComputeDomains for a PCS
@@ -358,7 +358,7 @@ func waitForComputeDomainCount(tc *testctx.TestContext, pcsName string, expected
 	fetchComputeDomains := waiter.FetchFunc[*unstructured.UnstructuredList](func(ctx context.Context) (*unstructured.UnstructuredList, error) {
 		list := &unstructured.UnstructuredList{}
 		list.SetGroupVersionKind(computeDomainGVK.GroupVersion().WithKind(computeDomainGVK.Kind + "List"))
-		if err := tc.K8s.List(ctx, list, client.InNamespace(tc.Namespace), client.MatchingLabels{"app.kubernetes.io/part-of": pcsName}); err != nil {
+		if err := tc.Client.List(ctx, list, client.InNamespace(tc.Namespace), client.MatchingLabels{"app.kubernetes.io/part-of": pcsName}); err != nil {
 			return nil, err
 		}
 		return list, nil
@@ -375,10 +375,10 @@ func waitForComputeDomainCount(tc *testctx.TestContext, pcsName string, expected
 
 // waitForPCSG waits for a PCSG to exist and returns it
 func waitForPCSG(tc *testctx.TestContext, pcsgName string) (*grovecorev1alpha1.PodCliqueScalingGroup, error) {
-	return workload.WaitForPodCliqueScalingGroup(tc.Ctx, tc.K8s, tc.Namespace, pcsgName, defaultPollTimeout, defaultPollInterval)
+	return workload.WaitForPodCliqueScalingGroup(tc.Ctx, tc.Client, tc.Namespace, pcsgName, defaultPollTimeout, defaultPollInterval)
 }
 
 // waitForPCLQ waits for a PCLQ to exist and returns it
 func waitForPCLQ(tc *testctx.TestContext, pclqName string) (*grovecorev1alpha1.PodClique, error) {
-	return workload.WaitForPodCliqueStandalone(tc.Ctx, tc.K8s, tc.Namespace, pclqName, defaultPollTimeout, defaultPollInterval)
+	return workload.WaitForPodCliqueStandalone(tc.Ctx, tc.Client, tc.Namespace, pclqName, defaultPollTimeout, defaultPollInterval)
 }

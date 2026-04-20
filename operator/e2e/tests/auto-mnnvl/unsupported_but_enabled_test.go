@@ -43,7 +43,7 @@ func Test_AutoMNNVL_UnsupportedButEnabled(t *testing.T) {
 	defer cleanup()
 
 	// Detect and validate cluster configuration
-	clusterConfig := requireClusterConfig(t, ctx, tc.K8s)
+	clusterConfig := requireClusterConfig(t, ctx, tc.Client)
 	clusterConfig.skipUnless(t, crdUnsupported, featureEnabled)
 
 	// Define all subtests
@@ -84,7 +84,7 @@ func testOperatorExitsWithoutCDCRD(t *testing.T, tc *testctx.TestContext) {
 	fetchLogs := waiter.FetchFunc[[]byte](func(ctx context.Context) ([]byte, error) {
 		var allLogs []byte
 		for _, previous := range []bool{false, true} {
-			logs, logErr := tc.K8s.GetLogs(groveOperatorNamespace, pod.Name, &corev1.PodLogOptions{
+			logs, logErr := tc.Client.GetLogs(groveOperatorNamespace, pod.Name, &corev1.PodLogOptions{
 				Previous: previous,
 			}).DoRaw(ctx)
 			if logErr == nil {
@@ -117,7 +117,7 @@ func waitForFailedOperatorPod(tc *testctx.TestContext) (*corev1.Pod, error) {
 		WithInterval(defaultPollInterval)
 	fetchFailedPod := waiter.FetchFunc[*corev1.Pod](func(ctx context.Context) (*corev1.Pod, error) {
 		var podList corev1.PodList
-		listErr := tc.K8s.List(ctx, &podList, client.InNamespace(groveOperatorNamespace), client.MatchingLabels{"app.kubernetes.io/name": "grove-operator"})
+		listErr := tc.Client.List(ctx, &podList, client.InNamespace(groveOperatorNamespace), client.MatchingLabels{"app.kubernetes.io/name": "grove-operator"})
 		pods := &podList
 		if listErr != nil || len(pods.Items) == 0 {
 			return nil, nil

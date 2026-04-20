@@ -41,7 +41,7 @@ func testNoMNNVLArtifactsWhenDisabled(t *testing.T, tc *testctx.TestContext) {
 
 	// Create a PCS with GPU requirement
 	pcs := buildComprehensivePCS(pcsName, 1)
-	err := tc.K8s.Create(tc.Ctx, pcs)
+	err := tc.Client.Create(tc.Ctx, pcs)
 	require.NoError(t, err, "Failed to create PCS")
 	defer deletePCS(tc, pcsName)
 
@@ -64,7 +64,7 @@ func testNoMNNVLArtifactsWhenDisabled(t *testing.T, tc *testctx.TestContext) {
 	// a "no matches for kind" error — that also means zero ComputeDomains, which is what we want.
 	cdList := &unstructured.UnstructuredList{}
 	cdList.SetGroupVersionKind(computeDomainGVK.GroupVersion().WithKind(computeDomainGVK.Kind + "List"))
-	err = tc.K8s.List(tc.Ctx, cdList, client.InNamespace(tc.Namespace))
+	err = tc.Client.List(tc.Ctx, cdList, client.InNamespace(tc.Namespace))
 	if k8serrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 		// CRD not installed → no ComputeDomains can exist, which is the expected state.
 	} else {

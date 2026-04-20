@@ -45,7 +45,7 @@ func Test_AutoMNNVL_SupportedAndEnabled(t *testing.T) {
 	defer cleanup()
 
 	// Detect and validate cluster configuration
-	clusterConfig := requireClusterConfig(t, ctx, tc.K8s)
+	clusterConfig := requireClusterConfig(t, ctx, tc.Client)
 	clusterConfig.skipUnless(t, crdSupported, featureEnabled)
 
 	// Define all subtests
@@ -80,13 +80,13 @@ func testPCSGetsAutoAnnotation(t *testing.T, tc *testctx.TestContext) {
 
 		// Create a PCS with GPU requirement (no annotation)
 		pcs := buildGPUPCS(pcsName, 1)
-		err := tc.K8s.Create(tc.Ctx, pcs)
+		err := tc.Client.Create(tc.Ctx, pcs)
 		require.NoError(t, err, "Failed to create PCS")
 		defer deletePCS(tc, pcsName)
 
 		// Verify the PCS has the auto-mnnvl annotation
 		var createdPCS grovecorev1alpha1.PodCliqueSet
-		err = tc.K8s.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
+		err = tc.Client.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
 		require.NoError(t, err, "Failed to get created PCS")
 
 		annotations := createdPCS.GetAnnotations()
@@ -99,13 +99,13 @@ func testPCSGetsAutoAnnotation(t *testing.T, tc *testctx.TestContext) {
 
 		// Create a PCS without GPU requirement
 		pcs := buildCPUOnlyPCS(pcsName, 1)
-		err := tc.K8s.Create(tc.Ctx, pcs)
+		err := tc.Client.Create(tc.Ctx, pcs)
 		require.NoError(t, err, "Failed to create PCS")
 		defer deletePCS(tc, pcsName)
 
 		// Verify the PCS does NOT have the auto-mnnvl annotation
 		var createdPCS grovecorev1alpha1.PodCliqueSet
-		err = tc.K8s.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
+		err = tc.Client.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
 		require.NoError(t, err, "Failed to get created PCS")
 
 		annotations := createdPCS.GetAnnotations()
@@ -123,13 +123,13 @@ func testComputeDomainCreatedPerReplica(t *testing.T, tc *testctx.TestContext) {
 
 	// Create a PCS with GPU requirement
 	pcs := buildGPUPCS(pcsName, replicas)
-	err := tc.K8s.Create(tc.Ctx, pcs)
+	err := tc.Client.Create(tc.Ctx, pcs)
 	require.NoError(t, err, "Failed to create PCS")
 	defer deletePCS(tc, pcsName)
 
 	// Re-fetch to get server-assigned UID
 	var createdPCS grovecorev1alpha1.PodCliqueSet
-	err = tc.K8s.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
+	err = tc.Client.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
 	require.NoError(t, err, "Failed to get created PCS")
 
 	// Wait for ComputeDomains to be created
@@ -148,7 +148,7 @@ func testComputeDomainCreatedPerReplica(t *testing.T, tc *testctx.TestContext) {
 	cdObj.SetGroupVersionKind(computeDomainGVK)
 	cdObj.SetName(cdName)
 	cdObj.SetNamespace(tc.Namespace)
-	err = tc.K8s.Delete(tc.Ctx, cdObj)
+	err = tc.Client.Delete(tc.Ctx, cdObj)
 	require.NoError(t, err, "Delete request should succeed (sets DeletionTimestamp)")
 
 	// CD should not be deleted while PCS still needs it (finalizer blocks deletion)
@@ -166,7 +166,7 @@ func testResourceClaimInjection(t *testing.T, tc *testctx.TestContext) {
 
 	// Create the comprehensive PCS
 	pcs := buildComprehensivePCS(pcsName, 1)
-	err := tc.K8s.Create(tc.Ctx, pcs)
+	err := tc.Client.Create(tc.Ctx, pcs)
 	require.NoError(t, err, "Failed to create PCS")
 	defer deletePCS(tc, pcsName)
 
@@ -279,13 +279,13 @@ func testScaleOutAndIn(t *testing.T, tc *testctx.TestContext) {
 
 	// Create a PCS with 1 replica
 	pcs := buildGPUPCS(pcsName, 1)
-	err := tc.K8s.Create(tc.Ctx, pcs)
+	err := tc.Client.Create(tc.Ctx, pcs)
 	require.NoError(t, err, "Failed to create PCS")
 	defer deletePCS(tc, pcsName)
 
 	// Re-fetch to get server-assigned UID
 	var createdPCS grovecorev1alpha1.PodCliqueSet
-	err = tc.K8s.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
+	err = tc.Client.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
 	require.NoError(t, err, "Failed to get created PCS")
 
 	// Wait for initial ComputeDomain
@@ -331,7 +331,7 @@ func testPCSDeletionCascadesToCD(t *testing.T, tc *testctx.TestContext) {
 
 	// Create a PCS with GPU requirement
 	pcs := buildGPUPCS(pcsName, 2)
-	err := tc.K8s.Create(tc.Ctx, pcs)
+	err := tc.Client.Create(tc.Ctx, pcs)
 	require.NoError(t, err, "Failed to create PCS")
 
 	// Wait for ComputeDomains
@@ -359,7 +359,7 @@ func testExplicitDisabledAnnotationHonored(t *testing.T, tc *testctx.TestContext
 	annotations[mnnvl.AnnotationAutoMNNVL] = mnnvl.AnnotationAutoMNNVLDisabled
 	pcs.SetAnnotations(annotations)
 
-	err := tc.K8s.Create(tc.Ctx, pcs)
+	err := tc.Client.Create(tc.Ctx, pcs)
 	require.NoError(t, err, "Failed to create PCS")
 	defer deletePCS(tc, pcsName)
 
@@ -397,7 +397,7 @@ func testInvalidAnnotationRejected(t *testing.T, tc *testctx.TestContext) {
 	annotations[mnnvl.AnnotationAutoMNNVL] = "invalid-value"
 	pcs.SetAnnotations(annotations)
 
-	err := tc.K8s.Create(tc.Ctx, pcs)
+	err := tc.Client.Create(tc.Ctx, pcs)
 	assert.Error(t, err, "PCS with invalid annotation value should be rejected")
 }
 
@@ -407,13 +407,13 @@ func testAnnotationImmutability(t *testing.T, tc *testctx.TestContext) {
 
 	// Create a GPU PCS (will get auto-annotated with "enabled")
 	pcs := buildGPUPCS(pcsName, 1)
-	err := tc.K8s.Create(tc.Ctx, pcs)
+	err := tc.Client.Create(tc.Ctx, pcs)
 	require.NoError(t, err, "Failed to create PCS")
 	defer deletePCS(tc, pcsName)
 
 	// Re-fetch to get server-applied annotations
 	var createdPCS grovecorev1alpha1.PodCliqueSet
-	err = tc.K8s.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
+	err = tc.Client.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
 	require.NoError(t, err, "Failed to get created PCS")
 
 	// Verify it has the auto-mnnvl annotation
@@ -423,7 +423,7 @@ func testAnnotationImmutability(t *testing.T, tc *testctx.TestContext) {
 
 	// Try to change annotation from "enabled" to "disabled"
 	createdPCS.Annotations[mnnvl.AnnotationAutoMNNVL] = mnnvl.AnnotationAutoMNNVLDisabled
-	err = tc.K8s.Update(tc.Ctx, &createdPCS)
+	err = tc.Client.Update(tc.Ctx, &createdPCS)
 	assert.Error(t, err, "Changing auto-mnnvl annotation should be rejected")
 	assert.Contains(t, err.Error(), "immutable", "Error should mention immutability")
 }
@@ -485,7 +485,7 @@ func requireNoContainerMNNVLClaim(t *testing.T, container *corev1.Container) {
 func getComputeDomain(tc *testctx.TestContext, name string) error {
 	cd := &unstructured.Unstructured{}
 	cd.SetGroupVersionKind(computeDomainGVK)
-	return tc.K8s.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: name}, cd)
+	return tc.Client.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: name}, cd)
 }
 
 // verifyComputeDomainContent verifies that a ComputeDomain exists with correct metadata and spec.
@@ -495,7 +495,7 @@ func verifyComputeDomainContent(t *testing.T, tc *testctx.TestContext, pcsName s
 	cdName := fmt.Sprintf("%s-%d", pcsName, replicaIndex)
 	cd := &unstructured.Unstructured{}
 	cd.SetGroupVersionKind(computeDomainGVK)
-	err := tc.K8s.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: cdName}, cd)
+	err := tc.Client.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: cdName}, cd)
 	require.NoError(t, err, "ComputeDomain %s should exist", cdName)
 
 	// Verify finalizer

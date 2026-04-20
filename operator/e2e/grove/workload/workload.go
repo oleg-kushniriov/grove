@@ -50,13 +50,13 @@ var (
 // WorkloadManager provides Grove workload operations using a controller-runtime client.
 type WorkloadManager struct {
 	cl        client.Client
-	k8s       *k8s.K8s
+	k8s       *k8s.Client
 	resources *resources.ResourceManager
 	logger    *log.Logger
 }
 
 // NewWorkloadManager creates a WorkloadManager bound to the given K8s client.
-func NewWorkloadManager(k8s *k8s.K8s, logger *log.Logger) *WorkloadManager {
+func NewWorkloadManager(k8s *k8s.Client, logger *log.Logger) *WorkloadManager {
 	return &WorkloadManager{
 		cl:        k8s,
 		k8s:       k8s,

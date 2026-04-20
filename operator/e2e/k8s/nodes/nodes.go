@@ -36,12 +36,12 @@ const defaultNodePollInterval = 2 * time.Second
 
 // NodeManager provides node operations using pre-created Kubernetes clients.
 type NodeManager struct {
-	k8s    *k8s.K8s
+	k8s    *k8s.Client
 	logger *log.Logger
 }
 
 // NewNodeManager creates a NodeManager bound to the given K8s client.
-func NewNodeManager(k8s *k8s.K8s, logger *log.Logger) *NodeManager {
+func NewNodeManager(k8s *k8s.Client, logger *log.Logger) *NodeManager {
 	return &NodeManager{k8s: k8s, logger: logger}
 }
 
