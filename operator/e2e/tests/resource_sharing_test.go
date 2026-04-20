@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	grovecorev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
+	"github.com/ai-dynamo/grove/operator/e2e/grove/gvk"
 	"github.com/ai-dynamo/grove/operator/e2e/grove/workload"
 	k8sutils "github.com/ai-dynamo/grove/operator/e2e/k8s"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
@@ -36,7 +37,6 @@ import (
 	resourcev1 "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -46,11 +46,6 @@ const (
 	rsNamespace    = "default"
 )
 
-var podCliqueGVK = schema.GroupVersionKind{
-	Group:   "grove.io",
-	Version: "v1alpha1",
-	Kind:    "PodClique",
-}
 
 // --- RC name inventories ---
 //
@@ -464,7 +459,7 @@ func Test_RS1_HierarchicalResourceSharing(t *testing.T) {
 // scalePodClique scales a PodClique using the resource manager.
 func scalePodClique(tc *testctx.TestContext, name string, replicas int) error {
 	rm := resources.NewResourceManager(tc.Client, Logger)
-	return rm.ScaleCRD(tc.Ctx, podCliqueGVK, tc.Namespace, name, replicas)
+	return rm.ScaleCRD(tc.Ctx, gvk.PodClique, tc.Namespace, name, replicas)
 }
 
 // verifyRCState waits for the expected RC count and verifies exact RC names.

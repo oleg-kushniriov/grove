@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/ai-dynamo/grove/operator/api/common"
+	"github.com/ai-dynamo/grove/operator/e2e/grove/gvk"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	nodeutils "github.com/ai-dynamo/grove/operator/e2e/k8s/nodes"
 	"github.com/ai-dynamo/grove/operator/e2e/log"
@@ -72,8 +73,8 @@ type resourceType struct {
 // pcsResourceType is the PodCliqueSet resource — the top-level user-created resource
 // that doesn't carry the managed-by label and must be checked without label selector.
 var pcsResourceType = resourceType{
-	GroupVersionResource: schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquesets"},
-	kind:                 "PodCliqueSet",
+	GroupVersionResource: schema.GroupVersionResource{Group: gvk.PodCliqueSet.Group, Version: gvk.PodCliqueSet.Version, Resource: "podcliquesets"},
+	kind:                 gvk.PodCliqueSet.Kind,
 	name:                 "PodCliqueSets",
 }
 
@@ -81,9 +82,9 @@ var pcsResourceType = resourceType{
 var groveManagedResourceTypes = []resourceType{
 	// Grove CRDs
 	pcsResourceType,
-	{GroupVersionResource: schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliquescalinggroups"}, kind: "PodCliqueScalingGroup", name: "PodCliqueScalingGroups"},
-	{GroupVersionResource: schema.GroupVersionResource{Group: "scheduler.grove.io", Version: "v1alpha1", Resource: "podgangs"}, kind: "PodGang", name: "PodGangs"},
-	{GroupVersionResource: schema.GroupVersionResource{Group: "grove.io", Version: "v1alpha1", Resource: "podcliques"}, kind: "PodClique", name: "PodCliques"},
+	{GroupVersionResource: schema.GroupVersionResource{Group: gvk.PodCliqueScalingGroup.Group, Version: gvk.PodCliqueScalingGroup.Version, Resource: "podcliquescalinggroups"}, kind: gvk.PodCliqueScalingGroup.Kind, name: "PodCliqueScalingGroups"},
+	{GroupVersionResource: schema.GroupVersionResource{Group: gvk.PodGang.Group, Version: gvk.PodGang.Version, Resource: "podgangs"}, kind: gvk.PodGang.Kind, name: "PodGangs"},
+	{GroupVersionResource: schema.GroupVersionResource{Group: gvk.PodClique.Group, Version: gvk.PodClique.Version, Resource: "podcliques"}, kind: gvk.PodClique.Kind, name: "PodCliques"},
 	// Kubernetes core resources
 	{GroupVersionResource: schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}, kind: "Service", name: "Services"},
 	{GroupVersionResource: schema.GroupVersionResource{Group: "", Version: "v1", Resource: "serviceaccounts"}, kind: "ServiceAccount", name: "ServiceAccounts"},
