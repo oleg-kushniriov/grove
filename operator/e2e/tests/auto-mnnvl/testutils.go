@@ -31,7 +31,7 @@ import (
 
 	grovecorev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
 	"github.com/ai-dynamo/grove/operator/e2e/grove/workload"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	"github.com/ai-dynamo/grove/operator/e2e/log"
 	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/e2e/waiter"
@@ -108,7 +108,7 @@ func init() {
 // requireClusterConfig returns the cached cluster MNNVL configuration, detecting it on first call.
 // This function is safe to call from multiple tests - detection only happens once.
 // If detection fails, the test is marked as fatal.
-func requireClusterConfig(t *testing.T, ctx context.Context, k8sClient *k8s.Client) *clusterMNNVLConfig {
+func requireClusterConfig(t *testing.T, ctx context.Context, k8sClient *k8sclient.Client) *clusterMNNVLConfig {
 	t.Helper()
 
 	configOnce.Do(func() {
@@ -127,7 +127,7 @@ func requireClusterConfig(t *testing.T, ctx context.Context, k8sClient *k8s.Clie
 
 // detectClusterConfig detects the MNNVL configuration from the cluster.
 // It checks both the operator ConfigMap and the presence of the ComputeDomain CRD.
-func detectClusterConfig(ctx context.Context, k8sClient *k8s.Client) (*clusterMNNVLConfig, error) {
+func detectClusterConfig(ctx context.Context, k8sClient *k8sclient.Client) (*clusterMNNVLConfig, error) {
 	config := &clusterMNNVLConfig{}
 
 	// Detect if MNNVL feature is enabled in operator config
@@ -148,7 +148,7 @@ func detectClusterConfig(ctx context.Context, k8sClient *k8s.Client) (*clusterMN
 }
 
 // detectAutoMNNVLEnabled checks if autoMNNVLEnabled is true in the operator ConfigMap
-func detectAutoMNNVLEnabled(ctx context.Context, k8sClient *k8s.Client) (bool, error) {
+func detectAutoMNNVLEnabled(ctx context.Context, k8sClient *k8sclient.Client) (bool, error) {
 	// List ConfigMaps in grove-system namespace to find the operator config
 	var configMapList corev1.ConfigMapList
 	if err := k8sClient.List(ctx, &configMapList, client.InNamespace(groveOperatorNamespace)); err != nil {

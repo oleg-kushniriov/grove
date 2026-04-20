@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	"github.com/ai-dynamo/grove/operator/e2e/log"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
 	corev1 "k8s.io/api/core/v1"
@@ -71,7 +71,7 @@ var groveResourceTypes = []groveResourceType{
 
 // DiagCollector collects diagnostics from a Kubernetes cluster on test failure.
 type DiagCollector struct {
-	k8s       *k8s.Client
+	k8s       *k8sclient.Client
 	namespace string
 	logger    *log.Logger
 	mode      string
@@ -79,7 +79,7 @@ type DiagCollector struct {
 }
 
 // NewDiagCollector creates a DiagCollector.
-func NewDiagCollector(k8sClient *k8s.Client, namespace, mode, dir string, logger *log.Logger) *DiagCollector {
+func NewDiagCollector(k8sClient *k8sclient.Client, namespace, mode, dir string, logger *log.Logger) *DiagCollector {
 	if mode == "" {
 		mode = ModeFile
 	}

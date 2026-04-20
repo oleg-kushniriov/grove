@@ -29,7 +29,7 @@ import (
 
 	grovev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
 	"github.com/ai-dynamo/grove/operator/e2e/grove/workload"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
 	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/e2e/tests"
@@ -349,7 +349,7 @@ func waitForRollingUpdateComplete(tc *testctx.TestContext, expectedReplicas int3
 	pcsName := tc.Workload.Name
 
 	pollCount := 0
-	fetchPCS := waiter.FetchByName(pcsName, k8s.Getter[*grovev1alpha1.PodCliqueSet](tc.Client, tc.Namespace))
+	fetchPCS := waiter.FetchByName(pcsName, k8sclient.Getter[*grovev1alpha1.PodCliqueSet](tc.Client, tc.Namespace))
 	predicate := waiter.Predicate[*grovev1alpha1.PodCliqueSet](func(pcs *grovev1alpha1.PodCliqueSet) bool {
 		pollCount++
 
@@ -510,7 +510,7 @@ func waitForOrdinalUpdating(tc *testctx.TestContext, ordinal int32) error {
 	pcsName := tc.Workload.Name
 
 	pollCount := 0
-	fetchPCS := waiter.FetchByName(pcsName, k8s.Getter[*grovev1alpha1.PodCliqueSet](tc.Client, tc.Namespace))
+	fetchPCS := waiter.FetchByName(pcsName, k8sclient.Getter[*grovev1alpha1.PodCliqueSet](tc.Client, tc.Namespace))
 	predicate := waiter.Predicate[*grovev1alpha1.PodCliqueSet](func(pcs *grovev1alpha1.PodCliqueSet) bool {
 		pollCount++
 

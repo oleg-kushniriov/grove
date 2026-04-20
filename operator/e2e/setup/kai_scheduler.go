@@ -25,7 +25,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -98,7 +98,7 @@ func CreateDefaultKaiQueues(ctx context.Context, config *HelmInstallConfig) erro
 	queuesPath := filepath.Join(filepath.Dir(currentFile), "../yaml/queues.yaml")
 
 	// Create K8s client and apply
-	k8sClient, err := k8s.New(config.RestConfig)
+	k8sClient, err := k8sclient.New(config.RestConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create K8s client: %w", err)
 	}

@@ -24,7 +24,7 @@ import (
 	"time"
 
 	grovecorev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
 	"github.com/ai-dynamo/grove/operator/e2e/log"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -50,13 +50,13 @@ var (
 // WorkloadManager provides Grove workload operations using a controller-runtime client.
 type WorkloadManager struct {
 	cl        client.Client
-	k8s       *k8s.Client
+	k8s       *k8sclient.Client
 	resources *resources.ResourceManager
 	logger    *log.Logger
 }
 
 // NewWorkloadManager creates a WorkloadManager bound to the given K8s client.
-func NewWorkloadManager(k8s *k8s.Client, logger *log.Logger) *WorkloadManager {
+func NewWorkloadManager(k8s *k8sclient.Client, logger *log.Logger) *WorkloadManager {
 	return &WorkloadManager{
 		cl:        k8s,
 		k8s:       k8s,

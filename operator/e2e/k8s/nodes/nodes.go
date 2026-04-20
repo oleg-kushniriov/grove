@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	"github.com/ai-dynamo/grove/operator/e2e/log"
 	"github.com/ai-dynamo/grove/operator/e2e/waiter"
 	v1 "k8s.io/api/core/v1"
@@ -36,12 +36,12 @@ const defaultNodePollInterval = 2 * time.Second
 
 // NodeManager provides node operations using pre-created Kubernetes clients.
 type NodeManager struct {
-	k8s    *k8s.Client
+	k8s    *k8sclient.Client
 	logger *log.Logger
 }
 
 // NewNodeManager creates a NodeManager bound to the given K8s client.
-func NewNodeManager(k8s *k8s.Client, logger *log.Logger) *NodeManager {
+func NewNodeManager(k8s *k8sclient.Client, logger *log.Logger) *NodeManager {
 	return &NodeManager{k8s: k8s, logger: logger}
 }
 
@@ -134,7 +134,7 @@ func (nm *NodeManager) WaitForReady(ctx context.Context, nodeName string, timeou
 		WithTimeout(timeout).
 		WithInterval(defaultNodePollInterval).
 		WithLogger(nm.logger)
-	return w.WaitFor(ctx, waiter.FetchByName(nodeName, k8s.Getter[*v1.Node](nm.k8s, "")),
+	return w.WaitFor(ctx, waiter.FetchByName(nodeName, k8sclient.Getter[*v1.Node](nm.k8s, "")),
 		func(node *v1.Node) bool { return node != nil && IsReady(node) })
 }
 

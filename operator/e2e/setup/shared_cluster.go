@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/ai-dynamo/grove/operator/api/common"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	nodeutils "github.com/ai-dynamo/grove/operator/e2e/k8s/nodes"
 	"github.com/ai-dynamo/grove/operator/e2e/log"
 	"github.com/ai-dynamo/grove/operator/e2e/waiter"
@@ -115,7 +115,7 @@ func listUnstructured(ctx context.Context, cl client.Client, rt resourceType, op
 // It connects to an existing cluster via kubeconfig and manages test lifecycle operations
 // like workload cleanup and node cordoning.
 type SharedClusterManager struct {
-	k8s           *k8s.Client
+	k8s           *k8sclient.Client
 	cleanup       func()
 	logger        *log.Logger
 	isSetup       bool
@@ -185,7 +185,7 @@ func (scm *SharedClusterManager) connectToCluster(ctx context.Context, testImage
 	}
 
 	// Create unified K8s client
-	k8sClient, err := k8s.New(restConfig)
+	k8sClient, err := k8sclient.New(restConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create K8s client: %w", err)
 	}
@@ -516,7 +516,7 @@ func (scm *SharedClusterManager) listRemainingGroveManagedResources(ctx context.
 }
 
 // GetClient returns the unified K8s client struct
-func (scm *SharedClusterManager) GetClient() *k8s.Client {
+func (scm *SharedClusterManager) GetClient() *k8sclient.Client {
 	return scm.k8s
 }
 

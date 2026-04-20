@@ -16,7 +16,7 @@
 // limitations under the License.
 // */
 
-package k8s
+package k8sclient
 
 import (
 	"context"
@@ -74,7 +74,7 @@ func init() {
 	crlog.SetLogger(klog.Background())
 }
 
-// New creates a K8s client from a rest.Config.
+// New creates a Client from a rest.Config.
 func New(restConfig *rest.Config) (*Client, error) {
 	scheme, err := newScheme()
 	if err != nil {

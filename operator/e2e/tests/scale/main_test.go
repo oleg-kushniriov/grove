@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	"github.com/ai-dynamo/grove/operator/e2e/measurement"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
 	"github.com/ai-dynamo/grove/operator/e2e/testctx"
@@ -103,7 +103,7 @@ func envOrDefault(key, def string) string {
 // setupPprofHook configures async pprof profile downloads after each tracker phase.
 // Returns a TimelineOption (nil when disabled) and a cleanup function.
 // Best-effort: never aborts the test — logs warnings on failure and returns noop.
-func setupPprofHook(ctx context.Context, cl *k8s.Client, runID, diagDir string, cfg pyroscopeConfig) (measurement.TimelineOption, func()) {
+func setupPprofHook(ctx context.Context, cl *k8sclient.Client, runID, diagDir string, cfg pyroscopeConfig) (measurement.TimelineOption, func()) {
 	noop := func() {}
 
 	if cfg.Disabled {

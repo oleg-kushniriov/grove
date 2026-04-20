@@ -27,7 +27,7 @@ import (
 
 	"github.com/ai-dynamo/grove/operator/e2e/diagnostics"
 	"github.com/ai-dynamo/grove/operator/e2e/grove/workload"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/nodes"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
@@ -67,7 +67,7 @@ type TestContext struct {
 	Ctx context.Context
 
 	// Shared client (created once per test run, goroutine-safe)
-	Client *k8s.Client
+	Client *k8sclient.Client
 
 	// Per-suite configuration
 	Namespace string
@@ -100,7 +100,7 @@ func WithWorkload(wc *WorkloadConfig) TestOption {
 }
 
 // NewTestContext creates a TestContext from a K8s client with optional configuration.
-func NewTestContext(t *testing.T, ctx context.Context, k8sClient *k8s.Client, opts ...TestOption) *TestContext {
+func NewTestContext(t *testing.T, ctx context.Context, k8sClient *k8sclient.Client, opts ...TestOption) *TestContext {
 	tc := &TestContext{
 		T:         t,
 		Ctx:       ctx,

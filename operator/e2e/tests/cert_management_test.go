@@ -35,7 +35,7 @@ import (
 
 	configv1alpha1 "github.com/ai-dynamo/grove/operator/api/config/v1alpha1"
 	"github.com/ai-dynamo/grove/operator/e2e/grove/workload"
-	"github.com/ai-dynamo/grove/operator/e2e/k8s"
+	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/resources"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
@@ -250,13 +250,13 @@ func deletePodCliqueSetAndWait(t *testing.T, ctx context.Context, tc *testctx.Te
 	Logger.Debugf("PodCliqueSet %s/%s deleted", namespace, name)
 }
 
-func waitForSecret(t *testing.T, ctx context.Context, k8sClient *k8s.Client, name string, shouldExist bool) {
+func waitForSecret(t *testing.T, ctx context.Context, k8sClient *k8sclient.Client, name string, shouldExist bool) {
 	t.Helper()
 
 	w := waiter.New[*corev1.Secret]().
 		WithTimeout(testctx.DefaultPollTimeout).
 		WithInterval(testctx.DefaultPollInterval)
-	getFn := k8s.Getter[*corev1.Secret](k8sClient, groveNamespace)
+	getFn := k8sclient.Getter[*corev1.Secret](k8sClient, groveNamespace)
 
 	var err error
 	if shouldExist {
@@ -273,12 +273,12 @@ func waitForSecret(t *testing.T, ctx context.Context, k8sClient *k8s.Client, nam
 // This is important because when transitioning from auto-provision to cert-manager mode,
 // the secret may already exist from auto-provision, and we need to wait for cert-manager
 // to actually update it (which is indicated by the cert-manager.io/certificate-name annotation).
-func waitForSecretManagedByCertManager(t *testing.T, ctx context.Context, k8sClient *k8s.Client, name string) {
+func waitForSecretManagedByCertManager(t *testing.T, ctx context.Context, k8sClient *k8sclient.Client, name string) {
 	t.Helper()
 
 	Logger.Debugf("Waiting for secret %s to be managed by cert-manager...", name)
 
-	fetchSecret := waiter.FetchByName(name, k8s.Getter[*corev1.Secret](k8sClient, groveNamespace))
+	fetchSecret := waiter.FetchByName(name, k8sclient.Getter[*corev1.Secret](k8sClient, groveNamespace))
 	isManagedByCertManager := waiter.Predicate[*corev1.Secret](func(secret *corev1.Secret) bool {
 		certName := secret.Annotations[certManagerCertNameAnnotation]
 		if certName != "" {
@@ -298,7 +298,7 @@ func waitForSecretManagedByCertManager(t *testing.T, ctx context.Context, k8sCli
 	}
 }
 
-func deleteCertManagerResources(ctx context.Context, k8sClient *k8s.Client) {
+func deleteCertManagerResources(ctx context.Context, k8sClient *k8sclient.Client) {
 	certGVK := schema.GroupVersionKind{Group: "cert-manager.io", Version: "v1", Kind: "Certificate"}
 	issuerGVK := schema.GroupVersionKind{Group: "cert-manager.io", Version: "v1", Kind: "ClusterIssuer"}
 
@@ -353,7 +353,7 @@ func installCertManager(t *testing.T, ctx context.Context, tc *testctx.TestConte
 	}
 }
 
-func waitForClusterIssuer(t *testing.T, ctx context.Context, k8sClient *k8s.Client, name string) {
+func waitForClusterIssuer(t *testing.T, ctx context.Context, k8sClient *k8sclient.Client, name string) {
 	t.Helper()
 
 	issuerGVK := schema.GroupVersionKind{
@@ -436,7 +436,7 @@ var webhookConfigNames = []string{
 // It checks:
 // 1. Webhook configurations have the cert-manager.io/inject-ca-from annotation
 // 2. The certificate secret has cert-manager annotations
-func verifyCertManagerMode(t *testing.T, ctx context.Context, k8sClient *k8s.Client) {
+func verifyCertManagerMode(t *testing.T, ctx context.Context, k8sClient *k8sclient.Client) {
 	t.Helper()
 
 	Logger.Debug("Verifying cert-manager mode is active...")
@@ -457,7 +457,7 @@ func verifyCertManagerMode(t *testing.T, ctx context.Context, k8sClient *k8s.Cli
 }
 
 // verifyAutoProvisionMode verifies that Grove is using auto-provisioned certificates.
-func verifyAutoProvisionMode(t *testing.T, ctx context.Context, k8sClient *k8s.Client) {
+func verifyAutoProvisionMode(t *testing.T, ctx context.Context, k8sClient *k8sclient.Client) {
 	t.Helper()
 
 	Logger.Debug("Verifying auto-provision mode is active...")
@@ -472,7 +472,7 @@ func verifyAutoProvisionMode(t *testing.T, ctx context.Context, k8sClient *k8s.C
 
 // verifyWebhookHasCertManagerAnnotation checks if a webhook configuration has the cert-manager annotation.
 // If shouldHave is true, it verifies the annotation exists; if false, it verifies the annotation is absent or empty.
-func verifyWebhookHasCertManagerAnnotation(ctx context.Context, k8sClient *k8s.Client, webhookName string, shouldHave bool) error {
+func verifyWebhookHasCertManagerAnnotation(ctx context.Context, k8sClient *k8sclient.Client, webhookName string, shouldHave bool) error {
 	// Try ValidatingWebhookConfiguration first
 	var vwc admissionregistrationv1.ValidatingWebhookConfiguration
 	if err := k8sClient.Get(ctx, types.NamespacedName{Name: webhookName}, &vwc); err == nil {
@@ -510,7 +510,7 @@ func verifyWebhookHasCertManagerAnnotation(ctx context.Context, k8sClient *k8s.C
 
 // verifyWebhookSecretCertManagerStatus checks if the webhook certificate secret's cert-manager management status matches expectations.
 // If expectManaged is true, it verifies cert-manager annotations exist; if false, it verifies they are absent.
-func verifyWebhookSecretCertManagerStatus(ctx context.Context, k8sClient *k8s.Client, expectManaged bool) error {
+func verifyWebhookSecretCertManagerStatus(ctx context.Context, k8sClient *k8sclient.Client, expectManaged bool) error {
 	var secret corev1.Secret
 	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: groveNamespace, Name: configv1alpha1.DefaultWebhookSecretName}, &secret); err != nil {
 		return fmt.Errorf("failed to get secret %s/%s: %w", groveNamespace, configv1alpha1.DefaultWebhookSecretName, err)
@@ -536,7 +536,7 @@ func verifyWebhookSecretCertManagerStatus(ctx context.Context, k8sClient *k8s.Cl
 // It includes retry logic to handle timing issues with:
 // - Kubernetes secret volume propagation delays
 // - The certwatcher's 10-second polling interval for detecting certificate changes
-func verifyWebhookServingCertificate(t *testing.T, ctx context.Context, k8sClient *k8s.Client) {
+func verifyWebhookServingCertificate(t *testing.T, ctx context.Context, k8sClient *k8sclient.Client) {
 	t.Helper()
 
 	Logger.Debug("Verifying webhook is serving the correct certificate (with retries for cert reload timing)...")
@@ -586,7 +586,7 @@ func verifyWebhookServingCertificate(t *testing.T, ctx context.Context, k8sClien
 }
 
 // getCertificateFromSecret retrieves and parses the TLS certificate from the webhook Secret.
-func getCertificateFromSecret(ctx context.Context, k8sClient *k8s.Client) (*x509.Certificate, error) {
+func getCertificateFromSecret(ctx context.Context, k8sClient *k8sclient.Client) (*x509.Certificate, error) {
 	var secret corev1.Secret
 	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: groveNamespace, Name: configv1alpha1.DefaultWebhookSecretName}, &secret); err != nil {
 		return nil, fmt.Errorf("failed to get secret: %w", err)
@@ -612,7 +612,7 @@ func getCertificateFromSecret(ctx context.Context, k8sClient *k8s.Client) (*x509
 
 // getServedCertificate connects to the webhook service and retrieves the certificate it's serving.
 // It uses port-forwarding to connect to the operator pod.
-func getServedCertificate(ctx context.Context, k8sClient *k8s.Client) (*x509.Certificate, error) {
+func getServedCertificate(ctx context.Context, k8sClient *k8sclient.Client) (*x509.Certificate, error) {
 	// Find the grove-operator pod
 	var podList corev1.PodList
 	if err := k8sClient.List(ctx, &podList, client.InNamespace(groveNamespace), client.MatchingLabels{"app.kubernetes.io/name": "grove-operator"}); err != nil {
