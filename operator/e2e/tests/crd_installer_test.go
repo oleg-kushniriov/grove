@@ -84,7 +84,7 @@ func enableCRDInstaller(t *testing.T, ctx context.Context, restConfig *rest.Conf
 func Test_CRD_Installer_AllCRDsExist(t *testing.T) {
 	ctx := context.Background()
 	sharedCluster := setup.SharedCluster(Logger)
-	k8sClient := sharedCluster.GetK8s()
+	k8sClient := sharedCluster.GetClient()
 
 	for _, crdName := range groveCRDNames {
 		crd := &unstructured.Unstructured{}
@@ -121,7 +121,7 @@ func Test_CRD_Installer_AllCRDsExist(t *testing.T) {
 func Test_CRD_Installer_InitContainerCompleted(t *testing.T) {
 	ctx := context.Background()
 	sharedCluster := setup.SharedCluster(Logger)
-	k8sClient := sharedCluster.GetK8s()
+	k8sClient := sharedCluster.GetClient()
 
 	// Enable the crd-installer init container for this test and restore the default when done.
 	disableCRDInstaller := enableCRDInstaller(t, ctx, k8sClient.RestConfig)
@@ -165,7 +165,7 @@ func Test_CRD_Installer_InitContainerCompleted(t *testing.T) {
 func Test_CRD_Installer_Idempotent(t *testing.T) {
 	ctx := context.Background()
 	sharedCluster := setup.SharedCluster(Logger)
-	k8sClient := sharedCluster.GetK8s()
+	k8sClient := sharedCluster.GetClient()
 
 	// Enable the crd-installer init container for this test and restore the default when done.
 	disableCRDInstaller := enableCRDInstaller(t, ctx, k8sClient.RestConfig)

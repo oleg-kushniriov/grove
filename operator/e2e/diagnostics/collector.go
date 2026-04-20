@@ -71,7 +71,7 @@ var groveResourceTypes = []groveResourceType{
 
 // DiagCollector collects diagnostics from a Kubernetes cluster on test failure.
 type DiagCollector struct {
-	k8s       *k8s.K8s
+	k8s       *k8s.Client
 	namespace string
 	logger    *log.Logger
 	mode      string
@@ -79,7 +79,7 @@ type DiagCollector struct {
 }
 
 // NewDiagCollector creates a DiagCollector.
-func NewDiagCollector(k8sClient *k8s.K8s, namespace, mode, dir string, logger *log.Logger) *DiagCollector {
+func NewDiagCollector(k8sClient *k8s.Client, namespace, mode, dir string, logger *log.Logger) *DiagCollector {
 	if mode == "" {
 		mode = ModeFile
 	}

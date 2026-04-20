@@ -543,7 +543,7 @@ func debugPodState(tc *testctx.TestContext) {
 			}
 		}
 		var eventList v1.EventList
-		err := tc.K8s.List(tc.Ctx, &eventList, client.InNamespace(tc.Namespace), &client.ListOptions{
+		err := tc.Client.List(tc.Ctx, &eventList, client.InNamespace(tc.Namespace), &client.ListOptions{
 			Raw: &metav1.ListOptions{FieldSelector: "involvedObject.name=" + pod.Name},
 		})
 		if err == nil {

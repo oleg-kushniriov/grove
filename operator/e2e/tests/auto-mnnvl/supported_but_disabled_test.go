@@ -41,7 +41,7 @@ func Test_AutoMNNVL_SupportedButDisabled(t *testing.T) {
 	defer cleanup()
 
 	// Detect and validate cluster configuration
-	clusterConfig := requireClusterConfig(t, ctx, tc.K8s)
+	clusterConfig := requireClusterConfig(t, ctx, tc.Client)
 	clusterConfig.skipUnless(t, crdSupported, featureDisabled)
 
 	// Define all subtests
@@ -69,13 +69,13 @@ func testNoAutoAnnotationAdded(t *testing.T, tc *testctx.TestContext) {
 
 	// Create a PCS with GPU requirement (no annotation)
 	pcs := buildGPUPCS(pcsName, 1)
-	err := tc.K8s.Create(tc.Ctx, pcs)
+	err := tc.Client.Create(tc.Ctx, pcs)
 	require.NoError(t, err, "Failed to create PCS")
 	defer deletePCS(tc, pcsName)
 
 	// Verify the PCS does NOT have the auto-mnnvl annotation
 	var createdPCS grovecorev1alpha1.PodCliqueSet
-	err = tc.K8s.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
+	err = tc.Client.Get(tc.Ctx, types.NamespacedName{Namespace: tc.Namespace, Name: pcsName}, &createdPCS)
 	require.NoError(t, err, "Failed to get created PCS")
 
 	annotations := createdPCS.GetAnnotations()
@@ -98,6 +98,6 @@ func testExplicitEnabledAnnotationRejected(t *testing.T, tc *testctx.TestContext
 	annotations[mnnvl.AnnotationAutoMNNVL] = mnnvl.AnnotationAutoMNNVLEnabled
 	pcs.SetAnnotations(annotations)
 
-	err := tc.K8s.Create(tc.Ctx, pcs)
+	err := tc.Client.Create(tc.Ctx, pcs)
 	assert.Error(t, err, "PCS with auto-mnnvl: enabled should be rejected when feature is disabled")
 }

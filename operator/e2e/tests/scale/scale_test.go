@@ -96,7 +96,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 	)
 	defer cleanup()
 
-	metadata, err := config.NewOperatorConfig(tc.K8s).ReadGroveMetadata(ctx)
+	metadata, err := config.NewOperatorConfig(tc.Client).ReadGroveMetadata(ctx)
 	if err != nil {
 		t.Fatalf("failed to read grove metadata: %v", err)
 	}
@@ -112,7 +112,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 		t.Fatalf("failed to create output directory: %v", err)
 	}
 
-	pprofOpt, pprofCleanup := setupPprofHook(ctx, tc.K8s, runID, outputDir, loadPyroscopeConfig())
+	pprofOpt, pprofCleanup := setupPprofHook(ctx, tc.Client, runID, outputDir, loadPyroscopeConfig())
 	defer pprofCleanup()
 
 	opts := []measurement.TimelineOption{
@@ -134,14 +134,14 @@ func Test_ScaleTest_1000(t *testing.T) {
 	tracker.AddPhase(measurement.PhaseDefinition{
 		Name: "deploy",
 		ActionFn: func(ctx context.Context) error {
-			_, err := resources.NewResourceManager(tc.K8s, Logger).ApplyYAMLFile(ctx, tc.Workload.YAMLPath, tc.Namespace)
+			_, err := resources.NewResourceManager(tc.Client, Logger).ApplyYAMLFile(ctx, tc.Workload.YAMLPath, tc.Namespace)
 			return err
 		},
 		Milestones: []measurement.MilestoneDefinition{
 			{
 				Name: "pods-created",
 				Condition: &condition.PodsCreatedCondition{
-					Client:        tc.K8s.Client,
+					Client:        tc.Client.Client,
 					Namespace:     tc.Namespace,
 					LabelSelector: tc.GetLabelSelector(),
 					ExpectedCount: scaleTestExpectedPods,
@@ -150,7 +150,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 			{
 				Name: "pods-ready",
 				Condition: &condition.PodsReadyCondition{
-					Client:        tc.K8s.Client,
+					Client:        tc.Client.Client,
 					Namespace:     tc.Namespace,
 					LabelSelector: tc.GetLabelSelector(),
 					ExpectedCount: scaleTestExpectedPods,
@@ -159,7 +159,7 @@ func Test_ScaleTest_1000(t *testing.T) {
 			{
 				Name: "pcs-available",
 				Condition: &condition.PCSAvailableCondition{
-					Client:        tc.K8s.Client,
+					Client:        tc.Client.Client,
 					Name:          tc.Workload.Name,
 					Namespace:     tc.Namespace,
 					ExpectedCount: scaleTestExpectedReplicas,
@@ -171,13 +171,13 @@ func Test_ScaleTest_1000(t *testing.T) {
 	tracker.AddPhase(measurement.PhaseDefinition{
 		Name: "delete",
 		ActionFn: func(ctx context.Context) error {
-			return workload.NewWorkloadManager(tc.K8s, Logger).DeletePCS(ctx, tc.Namespace, tc.Workload.Name)
+			return workload.NewWorkloadManager(tc.Client, Logger).DeletePCS(ctx, tc.Namespace, tc.Workload.Name)
 		},
 		Milestones: []measurement.MilestoneDefinition{
 			{
 				Name: "pcs-deleted",
 				Condition: &condition.PCSDeletedCondition{
-					Client:    tc.K8s.Client,
+					Client:    tc.Client.Client,
 					Name:      tc.Workload.Name,
 					Namespace: tc.Namespace,
 				},
