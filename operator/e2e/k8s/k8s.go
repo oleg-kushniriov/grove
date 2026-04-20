@@ -40,11 +40,11 @@ import (
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// K8s is the unified Kubernetes client for e2e tests.
+// Client is the unified Kubernetes client for e2e tests.
 // It embeds client.Client for all typed and unstructured operations,
 // and keeps a private clientset for capabilities client.Client lacks
 // (log streaming, pod watching).
-type K8s struct {
+type Client struct {
 	client.Client
 	RestConfig *rest.Config
 	clientset  kubernetes.Interface
@@ -75,7 +75,7 @@ func init() {
 }
 
 // New creates a K8s client from a rest.Config.
-func New(restConfig *rest.Config) (*K8s, error) {
+func New(restConfig *rest.Config) (*Client, error) {
 	scheme, err := newScheme()
 	if err != nil {
 		return nil, fmt.Errorf("build scheme: %w", err)
@@ -91,7 +91,7 @@ func New(restConfig *rest.Config) (*K8s, error) {
 		return nil, fmt.Errorf("create clientset: %w", err)
 	}
 
-	return &K8s{
+	return &Client{
 		Client:     cl,
 		RestConfig: restConfig,
 		clientset:  clientset,
@@ -99,18 +99,18 @@ func New(restConfig *rest.Config) (*K8s, error) {
 }
 
 // GetLogs returns a log stream request for a pod container.
-func (k *K8s) GetLogs(namespace, podName string, opts *corev1.PodLogOptions) *rest.Request {
+func (k *Client) GetLogs(namespace, podName string, opts *corev1.PodLogOptions) *rest.Request {
 	return k.clientset.CoreV1().Pods(namespace).GetLogs(podName, opts)
 }
 
 // WatchPods starts a watch on pods in the given namespace.
-func (k *K8s) WatchPods(ctx context.Context, namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (k *Client) WatchPods(ctx context.Context, namespace string, opts metav1.ListOptions) (watch.Interface, error) {
 	return k.clientset.CoreV1().Pods(namespace).Watch(ctx, opts)
 }
 
 // Getter returns a waiter.GetFunc that uses client.Client.Get for the given type and namespace.
 // This is a free function because Go methods cannot have type parameters.
-func Getter[T client.Object](k *K8s, namespace string) waiter.GetFunc[T] {
+func Getter[T client.Object](k *Client, namespace string) waiter.GetFunc[T] {
 	return func(ctx context.Context, name string, _ metav1.GetOptions) (T, error) {
 		obj := newInstance[T]()
 		key := types.NamespacedName{Namespace: namespace, Name: name}
