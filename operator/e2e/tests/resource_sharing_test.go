@@ -505,9 +505,9 @@ func verifyPodResourceClaimRefs(t *testing.T, pods []v1.Pod, expectedRefsByPCLQ 
 	matchedPCLQs := make(map[string]bool)
 
 	for _, pod := range pods {
-		pclqName := pod.Labels[LabelPodClique]
+		pclqName := pod.Labels[apicommon.LabelPodClique]
 		if pclqName == "" {
-			t.Errorf("Pod %s missing %s label", pod.Name, LabelPodClique)
+			t.Errorf("Pod %s missing %s label", pod.Name, apicommon.LabelPodClique)
 			continue
 		}
 
@@ -699,7 +699,7 @@ func verifyMultiPodPerReplicaRefs(t *testing.T, allPods []v1.Pod, pclqLabel stri
 	t.Helper()
 	var matchedPods []v1.Pod
 	for _, pod := range allPods {
-		if pod.Labels[LabelPodClique] == pclqLabel {
+		if pod.Labels[apicommon.LabelPodClique] == pclqLabel {
 			matchedPods = append(matchedPods, pod)
 		}
 	}
