@@ -513,7 +513,7 @@ func verifyComputeDomainContent(t *testing.T, tc *testctx.TestContext, pcsName s
 
 	// Verify labels
 	labels := cd.GetLabels()
-	assert.Equal(t, pcsName, labels["app.kubernetes.io/part-of"])
+	assert.Equal(t, pcsName, labels[apicommon.LabelPartOfKey])
 	assert.Equal(t, fmt.Sprintf("%d", replicaIndex), labels["grove.io/podcliqueset-replica-index"])
 
 	// Verify numNodes is 0 (elastic mode)

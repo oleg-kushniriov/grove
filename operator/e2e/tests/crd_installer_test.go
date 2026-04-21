@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	common "github.com/ai-dynamo/grove/operator/api/common"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s"
 	k8spods "github.com/ai-dynamo/grove/operator/e2e/k8s/pods"
 	"github.com/ai-dynamo/grove/operator/e2e/setup"
@@ -127,7 +128,7 @@ func Test_CRD_Installer_InitContainerCompleted(t *testing.T) {
 	defer disableCRDInstaller()
 
 	var podList v1.PodList
-	if err := k8sClient.List(ctx, &podList, client.InNamespace(setup.OperatorNamespace), client.MatchingLabels{"app.kubernetes.io/name": "grove-operator"}); err != nil {
+	if err := k8sClient.List(ctx, &podList, client.InNamespace(setup.OperatorNamespace), client.MatchingLabels{common.LabelAppNameKey: setup.OperatorDeploymentName}); err != nil {
 		t.Fatalf("failed to list operator pods: %v", err)
 	}
 	if len(podList.Items) == 0 {
@@ -172,7 +173,7 @@ func Test_CRD_Installer_Idempotent(t *testing.T) {
 
 	// Get the current operator pod name.
 	var podList v1.PodList
-	if err := k8sClient.List(ctx, &podList, client.InNamespace(setup.OperatorNamespace), client.MatchingLabels{"app.kubernetes.io/name": "grove-operator"}); err != nil || len(podList.Items) == 0 {
+	if err := k8sClient.List(ctx, &podList, client.InNamespace(setup.OperatorNamespace), client.MatchingLabels{common.LabelAppNameKey: setup.OperatorDeploymentName}); err != nil || len(podList.Items) == 0 {
 		t.Fatalf("failed to get operator pod: %v (count: %d)", err, len(podList.Items))
 	}
 	podName := podList.Items[0].Name

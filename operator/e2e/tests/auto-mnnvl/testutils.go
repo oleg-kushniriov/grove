@@ -29,11 +29,13 @@ import (
 	"testing"
 	"time"
 
+	apicommon "github.com/ai-dynamo/grove/operator/api/common"
 	grovecorev1alpha1 "github.com/ai-dynamo/grove/operator/api/core/v1alpha1"
 	"github.com/ai-dynamo/grove/operator/e2e/grove/gvk"
 	"github.com/ai-dynamo/grove/operator/e2e/grove/workload"
 	"github.com/ai-dynamo/grove/operator/e2e/k8s/k8sclient"
 	"github.com/ai-dynamo/grove/operator/e2e/log"
+	"github.com/ai-dynamo/grove/operator/e2e/setup"
 	"github.com/ai-dynamo/grove/operator/e2e/testctx"
 	"github.com/ai-dynamo/grove/operator/e2e/waiter"
 	"github.com/ai-dynamo/grove/operator/internal/mnnvl"
@@ -51,7 +53,7 @@ import (
 
 const (
 	// groveOperatorNamespace is the namespace where the Grove operator is deployed
-	groveOperatorNamespace = "grove-system"
+	groveOperatorNamespace = setup.OperatorNamespace
 
 	// groveConfigMapPrefix is the prefix for the Grove operator ConfigMap name
 	groveConfigMapPrefix = "grove-operator-cm-"
@@ -352,7 +354,7 @@ func waitForComputeDomainCount(tc *testctx.TestContext, pcsName string, expected
 	fetchComputeDomains := waiter.FetchFunc[*unstructured.UnstructuredList](func(ctx context.Context) (*unstructured.UnstructuredList, error) {
 		list := &unstructured.UnstructuredList{}
 		list.SetGroupVersionKind(gvk.ComputeDomain.GroupVersion().WithKind(gvk.ComputeDomain.Kind + "List"))
-		if err := tc.Client.List(ctx, list, client.InNamespace(tc.Namespace), client.MatchingLabels{"app.kubernetes.io/part-of": pcsName}); err != nil {
+		if err := tc.Client.List(ctx, list, client.InNamespace(tc.Namespace), client.MatchingLabels{apicommon.LabelPartOfKey: pcsName}); err != nil {
 			return nil, err
 		}
 		return list, nil
