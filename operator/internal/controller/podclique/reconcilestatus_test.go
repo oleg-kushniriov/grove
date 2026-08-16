@@ -394,6 +394,7 @@ func TestComputeMinAvailableBreachedConditionPartialScheduleRegression(t *testin
 	tests := []struct {
 		name                                                string
 		pclq                                                *grovecorev1alpha1.PodClique
+		isFirstStatusReconcile                              bool
 		numPodsHavingAtleastOneContainerWithNonZeroExitCode int
 		numPodsStartedButNotReady                           int
 		wantStatus                                          metav1.ConditionStatus
@@ -459,11 +460,13 @@ func TestComputeMinAvailableBreachedConditionPartialScheduleRegression(t *testin
 			wantReason: constants.ConditionReasonScheduledReplicasBelowMinAvailable,
 		},
 		{
-			// A fresh PCLQ that has not yet scheduled any pods still breaches
-			// under the always-breach rule. TerminationDelay (4h) is the grace
-			// window: if pods schedule in time the breach resolves before any
-			// termination action.
-			name: "fresh PCLQ never scheduled — also breaches (TerminationDelay is the grace)",
+			// scheduled == 0 on the PodClique's very first status reconcile (Conditions
+			// empty) must NOT breach — this is the churn-storm case: a burst of newly
+			// created PodCliques (e.g. a scale-up) would otherwise all write
+			// MinAvailableBreached=True on their very first status reconcile before the
+			// scheduler has had any chance to place a pod, cascading into extra reconciles
+			// across every PCLQ observer.
+			name: "fresh PCLQ on first status reconcile — not yet breached",
 			pclq: &grovecorev1alpha1.PodClique{
 				Spec: grovecorev1alpha1.PodCliqueSpec{
 					Replicas:     3,
@@ -476,14 +479,42 @@ func TestComputeMinAvailableBreachedConditionPartialScheduleRegression(t *testin
 					ReadyReplicas:      0,
 				},
 			},
-			wantStatus: metav1.ConditionTrue,
-			wantReason: constants.ConditionReasonScheduledReplicasBelowMinAvailable,
+			isFirstStatusReconcile: true,
+			wantStatus:             metav1.ConditionFalse,
+			wantReason:             constants.ConditionReasonAwaitingInitialSchedule,
+		},
+		{
+			// Same fresh, still-unscheduled PCLQ but on its second (or later) status
+			// reconcile: the one-shot exception no longer applies and the always-breach
+			// rule takes over unchanged. This is the regression case the always-breach
+			// rule fixed — a workload that never manages to schedule (or loses all pods
+			// after being healthy) must still breach so TerminationDelay can eventually
+			// recycle it. Because the exception is state-based (not time-based), this
+			// reconcile happens naturally — triggered by the pod-creation watch event the
+			// first reconcile itself causes — with no risk of the suppression getting
+			// stuck.
+			name: "same PCLQ, still unscheduled on second reconcile — breaches",
+			pclq: &grovecorev1alpha1.PodClique{
+				Spec: grovecorev1alpha1.PodCliqueSpec{
+					Replicas:     3,
+					MinAvailable: ptr.To(int32(3)),
+				},
+				Status: grovecorev1alpha1.PodCliqueStatus{
+					ObservedGeneration: ptr.To(int64(1)),
+					Replicas:           3,
+					ScheduledReplicas:  0,
+					ReadyReplicas:      0,
+				},
+			},
+			isFirstStatusReconcile: false,
+			wantStatus:             metav1.ConditionTrue,
+			wantReason:             constants.ConditionReasonScheduledReplicasBelowMinAvailable,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			condition := computeMinAvailableBreachedCondition(tt.pclq,
+			condition := computeMinAvailableBreachedCondition(tt.pclq, tt.isFirstStatusReconcile,
 				tt.numPodsHavingAtleastOneContainerWithNonZeroExitCode,
 				tt.numPodsStartedButNotReady)
 			assert.Equal(t, constants.ConditionTypeMinAvailableBreached, condition.Type)

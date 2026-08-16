@@ -72,8 +72,13 @@ func (r *Reconciler) reconcileStatus(ctx context.Context, logger logr.Logger, pc
 	// mutate the conditions only if the PodClique has been successfully reconciled at least once.
 	// This prevents prematurely setting incorrect conditions.
 	if pclq.Status.ObservedGeneration != nil {
+		// True only on this PodClique's very first status reconcile (Conditions starts empty on
+		// a brand-new object and this function is the only writer). Used to suppress the one
+		// spurious MinAvailableBreached=True write that would otherwise happen before the
+		// scheduler has had any chance to place a pod — see computeMinAvailableBreachedCondition.
+		isFirstStatusReconcile := len(originalStatus.Conditions) == 0
 		mutatePodCliqueScheduledCondition(pclq)
-		mutateMinAvailableBreachedCondition(pclq,
+		mutateMinAvailableBreachedCondition(pclq, isFirstStatusReconcile,
 			len(podCategories[k8sutils.PodHasAtleastOneContainerWithNonZeroExitCode]),
 			len(podCategories[k8sutils.PodStartedButNotReady]))
 		r.emitAllScheduledReplicasLostIfNeeded(pclq, originalStatus.ScheduledReplicas)
@@ -206,16 +211,18 @@ func (r *Reconciler) emitAllScheduledReplicasLostIfNeeded(pclq *grovecorev1alpha
 	}
 }
 
-// mutateMinAvailableBreachedCondition updates the MinAvailableBreached condition based on pod availability
-func mutateMinAvailableBreachedCondition(pclq *grovecorev1alpha1.PodClique, numNotReadyPodsWithContainersInError, numPodsStartedButNotReady int) {
-	newCondition := computeMinAvailableBreachedCondition(pclq, numNotReadyPodsWithContainersInError, numPodsStartedButNotReady)
+// mutateMinAvailableBreachedCondition updates the MinAvailableBreached condition based on pod
+// availability. isFirstStatusReconcile is true only for a PodClique's very first status
+// reconcile since creation (see the call site in reconcileStatus).
+func mutateMinAvailableBreachedCondition(pclq *grovecorev1alpha1.PodClique, isFirstStatusReconcile bool, numNotReadyPodsWithContainersInError, numPodsStartedButNotReady int) {
+	newCondition := computeMinAvailableBreachedCondition(pclq, isFirstStatusReconcile, numNotReadyPodsWithContainersInError, numPodsStartedButNotReady)
 	if k8sutils.HasConditionChanged(pclq.Status.Conditions, newCondition) {
 		meta.SetStatusCondition(&pclq.Status.Conditions, newCondition)
 	}
 }
 
 // computeMinAvailableBreachedCondition calculates the MinAvailableBreached condition status based on pod availability
-func computeMinAvailableBreachedCondition(pclq *grovecorev1alpha1.PodClique, numPodsHavingAtleastOneContainerWithNonZeroExitCode, numPodsStartedButNotReady int) metav1.Condition {
+func computeMinAvailableBreachedCondition(pclq *grovecorev1alpha1.PodClique, isFirstStatusReconcile bool, numPodsHavingAtleastOneContainerWithNonZeroExitCode, numPodsStartedButNotReady int) metav1.Condition {
 	if componentutils.IsPCLQAutoUpdateInProgress(pclq) {
 		return metav1.Condition{
 			Type:    constants.ConditionTypeMinAvailableBreached,
@@ -230,13 +237,40 @@ func computeMinAvailableBreachedCondition(pclq *grovecorev1alpha1.PodClique, num
 	scheduledReplicas := int(pclq.Status.ScheduledReplicas)
 	now := metav1.Now()
 
-	// scheduledReplicas < MinAvailable always breaches. TerminationDelay (default 4h) is
-	// the natural grace window: during a normal startup the breach flickers True briefly
-	// and resolves before TerminationDelay; a workload that stays below MinAvailable past
-	// TerminationDelay is genuinely stuck and gang-terminating gives the scheduler a fresh
-	// PodGang to retry against the current cluster state. This covers both the partial-
-	// regression case (0 < scheduled < MinAvailable) and the full-regression case
-	// (scheduled == 0 after the workload was once healthy).
+	// scheduledReplicas < MinAvailable always breaches, with one narrow exception: on the very
+	// first status reconcile of a brand-new PodClique, scheduledReplicas is necessarily 0 (the
+	// scheduler hasn't had any chance to place a pod yet). Without this exception every newly
+	// created PodClique writes a MinAvailableBreached=True condition transition (and status
+	// Patch) on that very first pass, which is expected and not a regression — but the write
+	// still bumps resourceVersion and cascades into reconciles on every controller watching
+	// PodCliques. Under sustained churn (many PodCliques created in a burst, e.g. a scale-up)
+	// that adds real reconcile overhead for a condition that would resolve within the next
+	// reconcile anyway.
+	//
+	// This is a one-shot, state-based check (isFirstStatusReconcile can never be true again for
+	// this object once its first status reconcile has run), not a time-based window — the very
+	// next reconcile (triggered naturally by the pod-creation watch event this same first pass
+	// causes) evaluates scheduledReplicas == 0 normally below, with no suppression and no risk
+	// of it ever getting silently stuck: a workload that never manages to schedule, or that
+	// loses all its pods after being healthy, still breaches from its second reconcile onward,
+	// preserving the always-breach fix.
+	//
+	// TerminationDelay (default 4h) is the natural grace window for the breach->terminate
+	// action itself: during a normal startup the breach flickers True briefly and resolves
+	// before TerminationDelay; a workload that stays below MinAvailable past TerminationDelay
+	// is genuinely stuck and gang-terminating gives the scheduler a fresh PodGang to retry
+	// against the current cluster state. This covers both the partial-regression case
+	// (0 < scheduled < MinAvailable) and the full-regression case (scheduled == 0 after the
+	// workload was once healthy).
+	if scheduledReplicas == 0 && isFirstStatusReconcile {
+		return metav1.Condition{
+			Type:               constants.ConditionTypeMinAvailableBreached,
+			Status:             metav1.ConditionFalse,
+			Reason:             constants.ConditionReasonAwaitingInitialSchedule,
+			Message:            "No pods scheduled yet on the first status reconcile since creation",
+			LastTransitionTime: now,
+		}
+	}
 	if scheduledReplicas < minAvailable {
 		return metav1.Condition{
 			Type:               constants.ConditionTypeMinAvailableBreached,
