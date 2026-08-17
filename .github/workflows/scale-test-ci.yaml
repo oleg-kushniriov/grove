@@ -18,8 +18,6 @@ jobs:
     if: github.event_name != 'schedule' || github.repository == 'ai-dynamo/grove'
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    env:
-      GROVE_E2E_PYROSCOPE_DISABLED: "true"
     steps:
       - name: Print runner specs
         run: |
@@ -44,7 +42,7 @@ jobs:
       - name: Create scale cluster
         working-directory: operator
         run: |
-          make scale-cluster-up E2E_CREATE_FLAGS='--dind-memory-mode --set pyroscope.enabled=false --set grove.profiling=false'
+          make scale-cluster-up E2E_CREATE_FLAGS='--dind-memory-mode'
 
       - name: Run scale test
         working-directory: operator/e2e/tests/scale
@@ -52,7 +50,15 @@ jobs:
           GROVE_E2E_DIAG_DIR: ${{ runner.temp }}/grove-scale
           GROVE_E2E_DIAG_MODE: file
         run: |
-          "${RUNNER_TEMP}/scale.test" -test.v -test.timeout=90m
+          "${RUNNER_TEMP}/scale.test" -test.v -test.timeout=90m -test.run Test_SoakChurn
+
+      - name: Upload pprof/diagnostics artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soakchurn-pprof
+          path: ${{ runner.temp }}/grove-scale
+          if-no-files-found: warn
 
       - name: Print scale cluster diagnostics
         if: failure()
