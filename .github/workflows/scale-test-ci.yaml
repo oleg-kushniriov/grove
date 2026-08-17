@@ -50,7 +50,7 @@ jobs:
           GROVE_E2E_DIAG_DIR: ${{ runner.temp }}/grove-scale
           GROVE_E2E_DIAG_MODE: file
         run: |
-          "${RUNNER_TEMP}/scale.test" -test.v -test.timeout=90m -test.run Test_SoakChurn
+          "${RUNNER_TEMP}/scale.test" -test.v -test.timeout=90m -test.run 'Test_ScaleTest_1000|Test_SoakChurn'
 
       - name: Upload pprof/diagnostics artifacts
         if: always()
